@@ -1,0 +1,166 @@
+body {
+    margin: 0;
+    background-color: #101827;
+    color: #f1f5f9;
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+  }
+  
+  main {
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 48px 24px;
+  }
+  
+  .location {
+    color: #94a3b8;
+  }
+  
+  h1 {
+    font-size: clamp(2.5rem, 7vw, 4rem);
+    line-height: 1.15;
+  }
+  
+  h2 {
+    color: #34d399;
+    font-size: 1.5rem;
+  }
+  
+  .intro {
+    max-width: 620px;
+    font-size: 1.125rem;
+    color: #cbd5e1;
+  }
+  
+  .button {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 24px;
+    background-color: #93c5fd;
+    color: #101827;
+    border-radius: 6px;
+    font-weight: bold;
+    text-decoration: none;
+  }
+  
+  .button:hover {
+    background-color: #bfdbfe;
+  }
+  
+  .button:focus-visible {
+    outline: 3px solid white;
+    outline-offset: 4px;
+  }
+  .resume-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .experience {
+    margin-top: 64px;
+    padding-top: 32px;
+    border-top: 1px solid #334155;
+  }
+  
+  .experience h3 {
+    margin-bottom: 8px;
+  }
+  
+  .employer {
+    color: #94a3b8;
+  }
+  
+  .experience li {
+    margin-bottom: 12px;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  .site-header {
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  
+  .site-header a {
+    color: #f1f5f9;
+    text-decoration: none;
+  }
+  
+  .site-name {
+    font-weight: bold;
+  }
+  
+  .site-header nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  
+  .site-header nav a:hover {
+    color: #93c5fd;
+  }
+  
+  #experience,
+  #resume {
+    scroll-margin-top: 24px;
+  }
+  
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  .projects {
+    margin-top: 64px;
+  }
+  
+  .project-card {
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 24px;
+  }
+  
+  .project-status {
+    color: #93c5fd;
+    font-size: 0.875rem;
+    font-weight: bold;
+  }
+  
+  .project-card h3 {
+    margin-top: 8px;
+  }
+  
+  .project-tools {
+    color: #94a3b8;
+  }
+  h1 {
+    margin-top: 16px;
+    margin-bottom: 24px;
+  }
+  
+  .intro {
+    margin-bottom: 24px;
+  }
+  
+  @media (max-width: 600px) {
+    main {
+      padding-top: 32px;
+    }
+  
+    .site-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  
+    .site-header nav {
+      gap: 16px;
+    }
+  }
