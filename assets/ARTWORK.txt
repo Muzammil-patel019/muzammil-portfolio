@@ -1,0 +1,30 @@
+ROBOT ARTWORK
+
+File: retro-crt-robot.png
+Original illustration generated for this portfolio with the built-in image generator.
+Generation mode: one new asset, one call. No stock photo or third-party animation service.
+Source: 1254 x 1254 PNG with an alpha channel.
+Animation is supplied by the website's CSS and JavaScript; the image itself is static.
+
+FINAL GENERATION PROMPT
+
+Use case: stylized-concept
+Asset type: a single transparent PNG mascot asset for a personal software engineer
+portfolio, displayed at 220–280 CSS pixels on a midnight navy website.
+Scene/backdrop: genuinely transparent alpha background. Nothing behind or below
+the robot. Do not draw a checkerboard, flat colored background, ground plane,
+scene, floor, stars, or any other objects.
+Subject: exactly ONE original compact friendly 1980s computer/CRT robot. Chunky
+square CRT monitor head with small cyan pixel eyes, one antenna, compact
+mechanical body, sturdy boots, and one claw arm slightly raised in a friendly gesture.
+Style/medium: genuine clean 16-bit pixel art, deliberate hard stepped pixel edges,
+crisp block clusters, dark outlines, limited palette, simple readable details.
+Not a smooth illustration, 3D render, vector drawing, or blurred image.
+Composition/framing: full body in three-quarter view, centered on a square
+canvas, robot occupies 70–80% of the canvas height with plenty of transparent
+edge margin, all antenna tips, claws, and boots fully inside frame.
+Color palette: muted silver and slate metal, teal phosphor #5eead4 and tiny warm
+amber accents. Readable on midnight navy.
+Constraints: one asset only, no sprite sheet, no variants, no text, words,
+letters, numbers, logo, watermark, frame, or UI. Preserve genuine transparency
+around the robot and through gaps between limbs.
