@@ -1010,3 +1010,28 @@ h2 em { color: var(--accent); font-weight: 400; }
 .resume-updates { margin: 45px 0; }
 .resume-updates > h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); margin-bottom: 16px; }
 .resume-updates > p { color: var(--muted); }
+
+/* A quieter contact section with direct, readable contact details. */
+.contact-simple {
+  padding: 12px 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1.2fr);
+  column-gap: 65px;
+}
+.contact-simple > .eyebrow { grid-column: 1 / -1; color: var(--accent); margin-bottom: 28px; }
+.contact-simple h2 { grid-column: 1; grid-row: 2; font: 700 clamp(2.6rem,4vw,4rem)/1.1 Arial,sans-serif; color: var(--ink); letter-spacing: -.055em; }
+.contact-simple .contact-intro { grid-column: 1; grid-row: 3 / span 2; font-size: .9rem; max-width: 330px; margin-top: 16px; }
+.contact-simple .email { grid-column: 2; grid-row: 2 / span 2; margin: 0; padding: 18px 0; border-color: var(--line); font-size: clamp(1rem,1.8vw,1.5rem); align-self: start; }
+.contact-simple .copy-controls { grid-column: 2; grid-row: 4; }
+.contact-simple .social-links { grid-column: 2; grid-row: 5; margin-top: 16px; }
+.contact-simple .contact-location { grid-column: 2; grid-row: 6; font-size: .65rem; }
+@media(max-width:700px) {
+  .contact-simple { display: block; padding: 0; }
+  .contact-simple h2 { font-size: 2.7rem; }
+  .contact-simple .contact-intro { max-width: 100%; }
+  .contact-simple .email { font-size: 1.1rem; margin-top: 28px; }
+}

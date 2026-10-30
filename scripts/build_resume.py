@@ -37,7 +37,7 @@ table.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'TOP'),('BOTTOMPADDING',(0,0)
 story.append(table)
 text('PROFESSIONAL EXPERIENCE','SectionLabel')
 text('AlgoShack Technologies | April 2024 – Present','DetailLine')
-role('Philips — IGT Azurion','July 2025 – Present')
+role('Philips — IGT Azurion','September 2025 – Present')
 bullets([
 'Developed and maintained C#, FlaUI, NUnit, and SpecFlow automation components for WPF healthcare applications, including tree navigation and UI synchronization.',
 'Implemented expected-versus-actual PSC procedure validation, reporting missing and unexpected procedures across system configurations.',
@@ -46,7 +46,7 @@ bullets([
 ])
 story.append(PageBreak())
 text('PROFESSIONAL EXPERIENCE — CONTINUED','SectionLabel')
-role('GE Healthcare — Elever','May 2025 – August 2025')
+role('GE Healthcare — Elever','April 2025 – September 2025')
 bullets(experience['ge'])
 role('Philips — CT-Incisive','April 2024 – March 2025')
 bullets(experience['ct'])
