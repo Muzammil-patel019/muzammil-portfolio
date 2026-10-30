@@ -78,5 +78,5 @@ test("tailored copies preserve the master and export the edited content", async 
     page.getByRole("button", { name: "Publish to portfolio" }),
   ).toBeDisabled();
   await page.goto("/resume");
-  await expect(page.locator("main")).toContainText("Python / TestComplete");
+  await expect(page.locator("main")).toContainText("Python · TestComplete");
 });
