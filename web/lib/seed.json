@@ -1,0 +1,73 @@
+{
+  "name": "Muzammil Patel",
+  "title": "Test Automation Engineer",
+  "email": "muzammilp1162@gmail.com",
+  "phone": "+91 7204947143",
+  "location": "Bengaluru, India",
+  "summary": "Test Automation Engineer experienced in manual and automated testing of healthcare desktop and web applications for Philips and GE Healthcare. Builds reusable automation with C#, Python, Java, FlaUI, Selenium, and TestComplete.",
+  "skills": [
+    "C#",
+    "Python",
+    "Java",
+    "SQL",
+    "FlaUI",
+    "Selenium",
+    "TestComplete",
+    "NUnit",
+    "SpecFlow",
+    "Cucumber",
+    "Gherkin",
+    "BDD",
+    "Postman",
+    "Agile",
+    "GitHub Actions",
+    "Azure DevOps"
+  ],
+  "projects": [
+    {
+      "id": "azurion",
+      "name": "IGT Azurion",
+      "client": "Philips",
+      "dates": "September 2025 \u2013 Present",
+      "type": "Desktop",
+      "tools": ["C#", "FlaUI", "NUnit", "SpecFlow"],
+      "bullets": [
+        "Developed reusable WPF automation components for UI navigation and synchronization.",
+        "Implemented expected-versus-actual procedure validation across system configurations.",
+        "Built screenshot, OCR, XML/JSON, and failure-investigation helpers."
+      ]
+    },
+    {
+      "id": "elever",
+      "name": "Elever",
+      "client": "GE Healthcare",
+      "dates": "April 2025 \u2013 September 2025",
+      "type": "Web",
+      "tools": ["Java", "Selenium"],
+      "bullets": [
+        "Designed manual test cases for functional, regression, UI, validation, boundary, and negative testing.",
+        "Translated user stories and business requirement documents into detailed test scenarios and cases.",
+        "Automated healthcare web workflows using Java and Selenium, with reusable step definitions and feature files.",
+        "Participated in daily stand-ups, sprint planning, and retrospectives to support Agile delivery."
+      ]
+    },
+    {
+      "id": "ct",
+      "name": "CT-Incisive",
+      "client": "Philips",
+      "dates": "April 2024 \u2013 March 2025",
+      "type": "Web",
+      "tools": ["Python", "TestComplete", "Cucumber", "Gherkin"],
+      "bullets": [
+        "Designed automated web application tests using Python and TestComplete, with execution on CT physical machines.",
+        "Validated complete user workflows through end-to-end, functional, regression, and sanity testing across multiple builds.",
+        "Created common custom methods and parameterized tests, reducing automation maintenance by 40%.",
+        "Implemented BDD with Cucumber and Gherkin; built reusable step definitions and feature files to improve maintainability and scalability.",
+        "Executed manual and automated test cases and batches on CT physical machines; analyzed reports, resolved script issues, and maintained stability.",
+        "Worked with developers and QA teams to investigate defects, and collaborated regularly with clients to develop test cases.",
+        "Mentored junior team members in Java and Cucumber test automation and shared practices for consistent quality."
+      ]
+    }
+  ],
+  "education": "Bachelor of Engineering \u2014 Computer Science Engineering\nVisvesvaraya Technological University | August 2019 \u2013 August 2023 | CGPA: 8.0"
+}

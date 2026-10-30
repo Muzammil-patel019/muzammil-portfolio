@@ -1,0 +1,138 @@
+@import "tailwindcss";
+@import "./portfolio.css";
+/* Keep utility classes in the studio separate from the portfolio's element styles. */
+.studio {
+  min-height: 100vh;
+  background: #f5f2eb;
+  color: #26232e;
+  font:
+    15px/1.6 Arial,
+    sans-serif;
+}
+.studio h1,
+.studio h2,
+.studio h3 {
+  margin: 0;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+.studio h1 {
+  font-size: 2rem;
+  font-weight: 750;
+}
+.studio h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.studio input,
+.studio textarea,
+.studio select {
+  width: 100%;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #c9c3d0;
+  border-radius: 7px;
+  color: #26232e;
+  font:
+    14px/1.5 Arial,
+    sans-serif;
+}
+.studio textarea {
+  min-height: 95px;
+  resize: vertical;
+}
+.studio label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 14px 0 5px;
+}
+.studio button {
+  border: 1px solid #c9c3d0;
+  background: white;
+  border-radius: 7px;
+  padding: 9px 13px;
+  font-size: 13px;
+  cursor: pointer;
+  min-height: 42px;
+}
+.studio button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.studio .primary {
+  background: #5540c6;
+  color: white;
+  border-color: #5540c6;
+}
+.studio .danger {
+  color: #a32525;
+}
+.studio .panel {
+  background: #fffdf8;
+  border: 1px solid #d4cedd;
+  border-radius: 12px;
+  padding: 24px;
+}
+.studio .notice {
+  background: #e9e2fa;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.studio .error {
+  background: #ffe6e1;
+  color: #8a241d;
+}
+.resume-preview {
+  background: white;
+  padding: 32px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+}
+.resume-preview h2 {
+  font-size: 22px;
+  color: #5540c6;
+}
+.resume-preview h3 {
+  margin: 22px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+.resume-preview p {
+  margin: 6px 0;
+}
+.resume-preview ul {
+  padding-left: 18px;
+  list-style: disc;
+}
+.resume-preview li {
+  margin: 5px 0;
+}
+.react-menu {
+  display: none;
+}
+@media (max-width: 920px) {
+  .site-header {
+    flex-wrap: nowrap;
+  }
+  .react-menu {
+    display: block;
+  }
+  #main-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--paper);
+    padding: 20px;
+    border: 1px solid var(--line);
+    z-index: 20;
+  }
+  #main-nav.react-nav-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

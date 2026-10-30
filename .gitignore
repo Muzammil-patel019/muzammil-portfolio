@@ -1,0 +1,8 @@
+
+web/node_modules/
+web/.next/
+web/.env*
+!web/.env.example
+web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
