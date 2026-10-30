@@ -213,4 +213,6 @@
   });
   reset.addEventListener('click', () => move(0,0));
   window.addEventListener('resize', () => move(x,y));
+  // The game changes the window height; keep the expanded panel on the desk.
+  new ResizeObserver(() => move(x, y)).observe(panel);
 })();
