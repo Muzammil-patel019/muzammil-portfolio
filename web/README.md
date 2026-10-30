@@ -33,6 +33,7 @@ Repeatable browser checks: run `npx playwright install chromium` once, then `npm
 - For CT-Incisive, edit **Project tools** to reflect your actual work. A private tailored version can emphasize Java/Selenium while a different version retains Python/TestComplete. Nothing is inferred or silently replaced.
 - Paste a JD to see recognized skills already present and missing. This is deterministic keyword matching, not an AI model or an ATS score. “Prioritize matching skills” reorders existing skills only. Missing skills are never automatically added.
 - **Save privately** saves the current version. **Save as new version** makes a separate copy. Choose master or tailored purpose and give each version a useful name. Version timestamps prevent silent overwrites from another tab.
+- Choose **Readable — full experience** for larger typography and natural page breaks (two pages for the default profile). **Compact** is optional and uses tighter spacing. The layout is saved with each version; old versions default to Readable. No database migration is needed.
 - **Download PDF** exports the current editor content without publishing it.
 - **Export JSON backup** exports structured resume content; import restores it after validation. Backups contain personal data—store them privately.
 - **Publish to portfolio** explicitly confirms that all fields in the preview become public. It writes a separate public snapshot. Private versions are never read by public routes. Publishing changes both the portfolio content and `/api/pdf`, while the demo cannot publish.
@@ -61,3 +62,7 @@ These require a real Supabase project and are not validated by local demo tests:
 ## Scope and limitations
 
 No paid AI service, AI key, or external JD upload is required. JDs stay in the current browser state; they are not saved to the database. The public phone, email, and profile are intentionally publishable. PDF layout adapts to content and may span multiple pages. The editor manages resume content, not blog posts, theme settings, education entries as separate records, or deployment/DNS. Contact/social account links remain owner-specific constants in the app.
+
+## Updating an extracted Windows copy
+
+If you extract an updated ZIP over the same folder, preserve your `web/.env.local`; it is not included in the ZIP. Stop the server with Ctrl+C before replacing files. Find the `web` folder that contains both `package.json` and your `.env.local`, then run `npm.cmd ci --include=optional` and `npm.cmd run dev`. ZIP tools sometimes create a nested second project folder; start the server from the updated `web` folder, not the old parent. Supabase-saved versions live in your database and are not removed when you replace app code. Do not delete your Supabase project or owner user to update the app.

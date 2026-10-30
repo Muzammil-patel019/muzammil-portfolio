@@ -1,5 +1,6 @@
 import { z } from "zod";
 export const resumeSchema = z.object({
+  layout: z.enum(["comfortable", "compact"]).default("comfortable"),
   name: z.string().trim().min(1).max(100),
   title: z.string().trim().min(1).max(120),
   email: z.email().max(200),

@@ -92,7 +92,7 @@ export function Editor() {
     )
       return;
     setSelected(v);
-    setResume(structuredClone(v.document));
+    setResume(resumeSchema.parse(structuredClone(v.document)));
     setName(v.name);
     setKind(v.kind);
     setDirty(false);
@@ -401,6 +401,24 @@ export function Editor() {
           </aside>
           <section className="panel min-w-0">
             <h2>Edit your experience</h2>
+            <label htmlFor="resume-layout">Resume layout</label>
+            <select
+              id="resume-layout"
+              value={resume.layout || "comfortable"}
+              onChange={(e) =>
+                change({
+                  ...resume,
+                  layout: e.target.value as "comfortable" | "compact",
+                })
+              }
+            >
+              <option value="comfortable">Readable — full experience</option>
+              <option value="compact">Compact — tighter spacing</option>
+            </select>
+            <p className="mt-2 text-xs text-stone-500">
+              Readable uses larger text and allows additional pages. Compact
+              saves space. Page count depends on your content.
+            </p>
             <p className="mt-2 text-xs text-stone-500">
               Use skills and tools that reflect your actual work. Changes appear
               in the preview immediately.

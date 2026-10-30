@@ -2,7 +2,10 @@ import type { Resume } from "@/lib/resume";
 import { groupSkills } from "@/lib/resume-layout";
 export function ResumePreview({ resume: r }: { resume: Resume }) {
   return (
-    <article className="resume-preview" aria-label={`${r.name} resume preview`}>
+    <article
+      className={`resume-preview ${r.layout === "compact" ? "resume-compact" : "resume-comfortable"}`}
+      aria-label={`${r.name} resume preview`}
+    >
       <header className="resume-heading">
         <h2>{r.name}</h2>
         <p className="resume-role">{r.title}</p>

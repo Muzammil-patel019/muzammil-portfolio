@@ -254,3 +254,38 @@
     align-items: stretch;
   }
 }
+
+/* Readable is the default; the compact option remains available per version. */
+.resume-preview.resume-comfortable {
+  font-size: 14px;
+  line-height: 1.7;
+}
+.resume-comfortable .resume-contact {
+  font-size: 11.5px;
+}
+.resume-comfortable .resume-section {
+  margin-top: 30px;
+}
+.resume-comfortable .resume-section-title {
+  font-size: 11.5px;
+  margin-bottom: 16px;
+}
+.resume-comfortable .resume-skill-groups dt {
+  font-size: 12px;
+}
+.resume-comfortable .resume-project-heading h4 {
+  font-size: 15px;
+}
+.resume-comfortable .resume-client,
+.resume-comfortable .resume-tools {
+  font-size: 12px;
+}
+.resume-comfortable .resume-dates {
+  font-size: 11.5px;
+}
+.resume-comfortable .resume-project + .resume-project {
+  margin-top: 30px;
+}
+.resume-comfortable li {
+  margin-bottom: 9px;
+}

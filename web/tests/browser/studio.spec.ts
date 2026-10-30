@@ -50,6 +50,7 @@ test("tailored copies preserve the master and export the edited content", async 
   await page.locator("#version-name").fill("Java application");
   await page.locator("#kind").selectOption("tailored");
   await page.locator("#ct-tools").fill("Java, Selenium");
+  await page.locator("#resume-layout").selectOption("compact");
   await page.getByRole("button", { name: "Save as new version" }).click();
   await page
     .getByRole("button", { name: "Master profile master", exact: true })
@@ -57,10 +58,12 @@ test("tailored copies preserve the master and export the edited content", async 
   await expect(page.locator("#ct-tools")).toHaveValue(
     "Python, TestComplete, Cucumber, Gherkin",
   );
+  await expect(page.locator("#resume-layout")).toHaveValue("comfortable");
   await page
     .getByRole("button", { name: "Java application tailored", exact: true })
     .click();
   await expect(page.locator("#ct-tools")).toHaveValue("Java, Selenium");
+  await expect(page.locator("#resume-layout")).toHaveValue("compact");
   await page.locator("#jd").fill("Java Selenium Playwright Docker SQL");
   await expect(page.locator("body")).toContainText("Playwright, Docker");
   const json = page.waitForEvent("download");

@@ -25,3 +25,13 @@ test("groups known skills and retains custom skills without changing input", () 
 });
 test("empty resume skills do not produce empty groups", () =>
   assert.deepEqual(groupSkills([]), []));
+
+test("older saved resumes default to readable and compact remains selectable", async () => {
+  const { resumeSchema } = await import("../lib/resume");
+  const { default: seed } = await import("../lib/seed.json");
+  assert.equal(resumeSchema.parse(seed).layout, "comfortable");
+  assert.equal(
+    resumeSchema.parse({ ...seed, layout: "compact" }).layout,
+    "compact",
+  );
+});
