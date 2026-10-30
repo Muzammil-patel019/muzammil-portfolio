@@ -27,7 +27,6 @@
 /* Motion is progressive enhancement: the full page stays readable without it. */
 (() => {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
   const items = document.querySelectorAll('.section-heading, .card, .skills-grid > div, .case-list .page-card, .link-row, .contact-card');
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
@@ -48,22 +47,6 @@
 
   const study = document.querySelector('.test-study');
   if (!study) return;
-  study.addEventListener('pointermove', event => {
-    if (reduced.matches || !finePointer.matches) return;
-    const bounds = study.getBoundingClientRect();
-    const x = (event.clientX - bounds.left) / bounds.width - .5;
-    const y = (event.clientY - bounds.top) / bounds.height - .5;
-    study.style.setProperty('--tilt-x', `${-y * 7}deg`);
-    study.style.setProperty('--tilt-y', `${x * 7}deg`);
-    study.style.setProperty('--inspect-x', `${x * 14}px`);
-    study.style.setProperty('--inspect-y', `${y * 14}px`);
-  });
-  const reset = () => {
-    ['--tilt-x', '--tilt-y', '--inspect-x', '--inspect-y'].forEach(name => study.style.removeProperty(name));
-  };
-  study.addEventListener('pointerleave', reset);
-  reduced.addEventListener('change', reset);
-
   const controls = study.querySelector('.inspection');
   const button = study.querySelector('.inspect-button');
   const status = study.querySelector('.inspection-status');
@@ -187,4 +170,47 @@
   controls.className = 'copy-controls';
   controls.append(button, status);
   email.after(controls);
+})();
+
+/* The inspector is movable by its handle; keyboard users get the same control. */
+(() => {
+  const desk = document.querySelector('.play-desk');
+  const panel = desk?.querySelector('.test-study');
+  const handle = desk?.querySelector('.desk-handle');
+  const reset = desk?.querySelector('.desk-reset');
+  if (!handle) return;
+  handle.hidden = false;
+  reset.hidden = false;
+  let x = 0;
+  let y = 0;
+  let drag;
+  const move = (nextX, nextY) => {
+    const maxX = Math.max(0, desk.clientWidth - panel.offsetWidth - panel.offsetLeft - 10);
+    const minX = -panel.offsetLeft + 10;
+    const maxY = Math.max(0, desk.clientHeight - panel.offsetHeight - panel.offsetTop - 30);
+    x = Math.max(minX, Math.min(maxX, nextX));
+    y = Math.max(-panel.offsetTop + 50, Math.min(maxY, nextY));
+    panel.style.setProperty('--desk-x', `${x}px`);
+    panel.style.setProperty('--desk-y', `${y}px`);
+  };
+  handle.addEventListener('pointerdown', event => {
+    drag = { id: event.pointerId, startX: event.clientX, startY: event.clientY, x, y };
+    handle.setPointerCapture(event.pointerId);
+  });
+  handle.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    move(drag.x + event.clientX - drag.startX, drag.y + event.clientY - drag.startY);
+  });
+  const finish = () => { drag = null; };
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', finish);
+  handle.addEventListener('lostpointercapture', finish);
+  handle.addEventListener('keydown', event => {
+    const steps = { ArrowLeft: [-12,0], ArrowRight: [12,0], ArrowUp: [0,-12], ArrowDown: [0,12] };
+    if (!steps[event.key]) return;
+    event.preventDefault();
+    move(x + steps[event.key][0], y + steps[event.key][1]);
+  });
+  reset.addEventListener('click', () => move(0,0));
+  window.addEventListener('resize', () => move(x,y));
 })();
