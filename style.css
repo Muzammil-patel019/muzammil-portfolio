@@ -1006,3 +1006,7 @@ h2 em { color: var(--accent); font-weight: 400; }
 @media(prefers-reduced-motion:reduce) {
   .test-study { transform: translate(var(--desk-x,0px),var(--desk-y,0px)) rotate(-2deg); }
 }
+
+.resume-updates { margin: 45px 0; }
+.resume-updates > h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); margin-bottom: 16px; }
+.resume-updates > p { color: var(--muted); }

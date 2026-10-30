@@ -1,0 +1,17 @@
+{
+  "ge": [
+    "Designed manual test cases for functional, regression, UI, validation, boundary, and negative testing.",
+    "Translated user stories and business requirement documents into detailed test scenarios and cases.",
+    "Automated healthcare web workflows using Java and Selenium, with reusable step definitions and feature files.",
+    "Participated in daily stand-ups, sprint planning, and retrospectives to support Agile delivery."
+  ],
+  "ct": [
+    "Designed automated web application tests using Python and TestComplete, with execution on CT physical machines.",
+    "Validated complete user workflows through end-to-end, functional, regression, and sanity testing across multiple builds.",
+    "Created common custom methods and parameterized tests, reducing automation maintenance by 40%.",
+    "Implemented BDD with Cucumber and Gherkin; built reusable step definitions and feature files to improve maintainability and scalability.",
+    "Executed manual and automated test cases and batches on CT physical machines; analyzed reports, resolved script issues, and maintained stability.",
+    "Worked with developers and QA teams to investigate defects, and collaborated regularly with clients to develop test cases.",
+    "Mentored junior team members in Java and Cucumber test automation and shared practices for consistent quality."
+  ]
+}
