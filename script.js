@@ -69,41 +69,122 @@
   const status = study.querySelector('.inspection-status');
   const art = study.querySelector('.study-art');
   controls.hidden = false;
-  let phase = 'idle';
-  let bug;
-  button.addEventListener('click', () => {
-    if (phase === 'search') {
-      bug.focus();
-      return;
-    }
-    phase = 'search';
+  let round = 0;
+  let mistakes = 0;
+  const patterns = ['┌', '┐', '└'];
+  const variants = ['┐', '┘', '┌'];
+  function beginRound() {
     study.classList.remove('inspection-passed');
-    study.classList.add('inspection-active');
-    button.textContent = 'Find the mismatch';
-    status.textContent = 'One mark is out of place. Find and select the red ×.';
+    study.classList.add('inspection-active', 'inspection-playing');
     art.removeAttribute('aria-hidden');
-    bug = document.createElement('button');
-    bug.type = 'button';
-    bug.className = 'inspection-bug';
-    bug.setAttribute('aria-label', 'Flag the mismatched mark');
-    bug.textContent = '×';
-    bug.style.left = `${20 + Math.random() * 55}%`;
-    bug.style.top = `${14 + Math.random() * 48}%`;
-    art.append(bug);
-    bug.addEventListener('click', () => {
-      phase = 'passed';
-      study.classList.remove('inspection-active');
-      study.classList.add('inspection-passed');
-      bug.remove();
-      art.setAttribute('aria-hidden', 'true');
-      button.textContent = 'Run it again';
-      status.textContent = 'Mismatch caught. A small detail makes all the difference.';
-      button.focus();
-      if (!reduced.matches) study.querySelector('.check-mark').animate([
-        { transform: 'rotate(-12deg) scale(.8)' },
-        { transform: 'rotate(-12deg) scale(1.15)', offset: .6 },
-        { transform: 'rotate(-12deg) scale(1)' }
-      ], { duration: 500, easing: 'ease-out' });
-    });
+    art.querySelector('.inspection-grid')?.remove();
+    const grid = document.createElement('div');
+    grid.className = 'inspection-grid';
+    grid.setAttribute('role', 'group');
+    grid.setAttribute('aria-label', `Inspection ${round + 1}: find the different corner`);
+    const mismatch = Math.floor(Math.random() * 16);
+    for (let i = 0; i < 16; i++) {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'inspection-tile';
+      tile.textContent = i === mismatch ? variants[round] : patterns[round];
+      tile.setAttribute('aria-label', `Mark ${i + 1}: ${i === mismatch ? ['top right', 'bottom right', 'top left'][round] : ['top left', 'top right', 'bottom left'][round]} corner`);
+      tile.addEventListener('click', () => {
+        if (i !== mismatch) {
+          mistakes++;
+          tile.classList.add('tile-reviewed');
+          status.textContent = 'That one matches. Compare the direction of each corner.';
+          return;
+        }
+        round++;
+        if (round < 3) {
+          status.textContent = `Caught it. Inspection ${round + 1} of 3 — look for the different corner.`;
+          beginRound();
+          art.querySelector('.inspection-tile')?.focus();
+        } else {
+          grid.remove();
+          study.classList.remove('inspection-active', 'inspection-playing');
+          study.classList.add('inspection-passed');
+          art.setAttribute('aria-hidden', 'true');
+          button.textContent = 'Try a new inspection';
+          status.textContent = `3 of 3 caught. ${mistakes === 0 ? 'A clean inspection.' : 'Every second look counts.'}`;
+          study.querySelector('.study-foot').textContent = 'INSPECTION COMPLETE / ALL DETAILS VERIFIED';
+          button.focus();
+          if (!reduced.matches) study.querySelector('.check-mark').animate([
+            { transform: 'rotate(-12deg) scale(.5)', opacity: 0 },
+            { transform: 'rotate(-12deg) scale(1.12)', opacity: 1, offset: .7 },
+            { transform: 'rotate(-12deg) scale(1)' }
+          ], { duration: 600, easing: 'ease-out' });
+        }
+      });
+      grid.append(tile);
+    }
+    art.append(grid);
+    button.textContent = 'Restart inspection';
+    study.querySelector('.study-foot').textContent = `DETAIL STUDY / ${String(round + 1).padStart(2, '0')} OF 03`;
+  }
+  button.addEventListener('click', () => {
+    round = 0;
+    mistakes = 0;
+    status.textContent = 'Inspection 1 of 3. Select the corner facing a different direction.';
+    beginRound();
+    art.querySelector('.inspection-tile')?.focus();
   });
+})();
+
+/* Explore actual experience by the kind of automation involved. */
+(() => {
+  const list = document.querySelector('.experience-grid, .case-list');
+  if (!list) return;
+  const cards = [...list.children];
+  const toolbar = document.createElement('div');
+  toolbar.className = 'work-filters';
+  toolbar.setAttribute('role', 'group');
+  toolbar.setAttribute('aria-label', 'Filter automation experience');
+  const status = document.createElement('span');
+  status.className = 'filter-status';
+  status.setAttribute('role', 'status');
+  for (const [label, keyword] of [['All work', ''], ['Desktop', 'desktop'], ['Web', 'web']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.setAttribute('aria-pressed', String(keyword === ''));
+    button.addEventListener('click', () => {
+      toolbar.querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+      cards.forEach(card => { card.hidden = !card.textContent.toLowerCase().includes(keyword); });
+      const count = cards.filter(card => !card.hidden).length;
+      status.textContent = `${String(count).padStart(2, '0')} / PROJECTS`;
+    });
+    toolbar.append(button);
+  }
+  status.textContent = `${String(cards.length).padStart(2, '0')} / PROJECTS`;
+  toolbar.append(status);
+  list.before(toolbar);
+})();
+
+/* A useful contact shortcut, with a fallback for downloaded file previews. */
+(() => {
+  const email = document.querySelector('.email');
+  if (!email) return;
+  const button = document.createElement('button');
+  button.className = 'copy-email';
+  button.type = 'button';
+  button.textContent = 'Copy email address';
+  const status = document.createElement('span');
+  status.className = 'copy-status';
+  status.setAttribute('role', 'status');
+  button.addEventListener('click', async () => {
+    const address = email.getAttribute('href').replace('mailto:', '');
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(address);
+      status.textContent = 'Copied — ready when you are.';
+    } catch {
+      status.textContent = 'Select the email address above to copy it, or click it to send a message.';
+    }
+  });
+  const controls = document.createElement('div');
+  controls.className = 'copy-controls';
+  controls.append(button, status);
+  email.after(controls);
 })();

@@ -841,3 +841,54 @@ footer {
   .orbit-two { translate: none; }
   .inspection-active .study-art::after { display: none; }
 }
+
+/* A small visual test bench, built for touch and keyboard as well as pointer. */
+.inspection-grid {
+  position: absolute;
+  inset: 0 0 26px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  background: #e8e5da;
+  z-index: 3;
+}
+.inspection-tile {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #c5c0b0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 2rem/1 var(--mono);
+  transition: background 180ms ease, transform 180ms ease;
+}
+.inspection-tile:hover { background: #e5baa8; transform: translateY(-2px); }
+.inspection-tile:focus-visible { outline-offset: -4px; }
+.inspection-tile.tile-reviewed { color: #888477; background: #dedace; }
+.inspection-playing .orbit, .inspection-playing .check-mark { visibility: hidden; }
+.work-filters { display: flex; align-items: center; gap: 8px; padding: 0 0 20px; flex-wrap: wrap; }
+.work-filters button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: .7rem/1.5 var(--mono);
+  padding: 10px 15px;
+  min-height: 44px;
+  transition: background 180ms ease, color 180ms ease;
+}
+.work-filters button[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+.work-filters button:hover { border-color: var(--accent); }
+.filter-status { margin-left: auto; font: .6rem/1.5 var(--mono); color: var(--muted); }
+.copy-controls { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin-top: 12px; }
+.copy-email { padding: 10px 0; border: 0; background: none; color: var(--accent); font: .7rem/1.5 var(--mono); text-decoration: underline; text-underline-offset: 4px; min-height: 44px; }
+.copy-status { font: .65rem/1.6 var(--mono); color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-copy > * { animation: introduction-in 750ms both cubic-bezier(.2,.7,.2,1); }
+  .hero-copy h1 { animation-delay: 100ms; }
+  .hero-copy .hero-line { animation-delay: 180ms; }
+  .hero-copy .intro { animation-delay: 240ms; }
+  .hero-copy .hero-actions { animation-delay: 300ms; }
+  @keyframes introduction-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+}
