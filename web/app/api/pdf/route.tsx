@@ -3,13 +3,14 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { ResumePDF } from "@/components/ResumePDF";
 import { owner, apiError, readJSON, publicResume } from "@/lib/server";
 import { resumeSchema, type Resume } from "@/lib/resume";
+import { resumeFilename } from "@/lib/resume-filename";
 export const runtime = "nodejs";
 async function pdf(resume: Resume) {
   const buffer = await renderToBuffer(<ResumePDF resume={resume} />);
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": 'attachment; filename="Muzammil_Patel_Resume.pdf"',
+      "Content-Disposition": `attachment; filename="${resumeFilename()}"`,
       "Cache-Control": "no-store",
     },
   });

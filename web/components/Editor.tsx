@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { browserClient } from "@/lib/supabase";
 import { resumeSchema, analyzeJD, type Resume } from "@/lib/resume";
+import { resumeFilename } from "@/lib/resume-filename";
 import seed from "@/lib/seed.json";
 import { ResumePreview } from "./ResumePreview";
 type Version = {
@@ -187,13 +188,15 @@ export function Editor() {
         ]);
         download(
           await pdf(<ResumePDF resume={parsed.data} />).toBlob(),
-          "Muzammil_Patel_Resume.pdf",
+          resumeFilename(),
         );
       } else {
-        download(
-          await (await request("/api/pdf", parsed.data)).blob(),
-          "Muzammil_Patel_Resume.pdf",
-        );
+        const response = await request("/api/pdf", parsed.data);
+        const filename =
+          response.headers
+            .get("Content-Disposition")
+            ?.match(/filename="([^"]+)"/)?.[1] || resumeFilename();
+        download(await response.blob(), filename);
       }
       setMessage("PDF exported from the current preview.");
     } catch (e) {

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { resumeFilename } from "../../lib/resume-filename";
 import { readFile } from "node:fs/promises";
 test("public pages and studio fit desktop and mobile", async ({ page }) => {
   for (const width of [1440, 768, 390, 320]) {
@@ -75,7 +76,9 @@ test("tailored copies preserve the master and export the edited content", async 
   ]);
   const pdf = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PDF", exact: true }).click();
-  const output = await (await pdf).path();
+  const generatedPDF = await pdf;
+  expect(generatedPDF.suggestedFilename()).toBe(resumeFilename());
+  const output = await generatedPDF.path();
   expect((await readFile(output!)).subarray(0, 4).toString()).toBe("%PDF");
   await expect(
     page.getByRole("button", { name: "Publish to portfolio" }),

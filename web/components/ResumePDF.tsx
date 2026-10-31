@@ -87,25 +87,6 @@ function makeStyles(compact: boolean) {
     },
   });
 }
-// Keep normal-length projects together; very long edited projects may flow.
-function shouldWrapProject(
-  project: Resume["projects"][number],
-  compact: boolean,
-) {
-  const charsPerLine = compact ? 105 : 85;
-  const lineHeight = compact ? 12 : 15;
-  const estimatedHeight =
-    90 +
-    Math.ceil(project.tools.join(" · ").length / charsPerLine) * lineHeight +
-    project.bullets.reduce(
-      (height, text) =>
-        height +
-        Math.max(1, Math.ceil(text.length / charsPerLine)) * lineHeight +
-        6,
-      0,
-    );
-  return estimatedHeight > 640;
-}
 export function ResumePDF({ resume: r }: { resume: Resume }) {
   const s = makeStyles(r.layout === "compact");
   const bullet = (text: string, key: number) => (
@@ -147,11 +128,7 @@ export function ResumePDF({ resume: r }: { resume: Resume }) {
           PROFESSIONAL EXPERIENCE
         </Text>
         {r.projects.map((p) => (
-          <View
-            key={p.id}
-            style={s.project}
-            wrap={shouldWrapProject(p, r.layout === "compact")}
-          >
+          <View key={p.id} style={s.project} wrap>
             <View wrap={false}>
               <View style={s.projectHead}>
                 <View style={s.projectTitleBlock}>
