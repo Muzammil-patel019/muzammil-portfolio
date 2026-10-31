@@ -7,7 +7,8 @@ export default function Login() {
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [message, setMessage] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [showPassword, setShowPassword] = useState(false);
   return (
     <main className="studio flex min-h-screen items-center justify-center p-5">
       <div className="panel w-full max-w-md">
@@ -37,16 +38,23 @@ export default function Login() {
               e.preventDefault();
               setBusy(true);
               setMessage("");
-              const { error } = await db.auth.signInWithPassword({
-                email,
-                password,
-              });
-              setBusy(false);
-              if (error)
+              try {
+                const { error } = await db.auth.signInWithPassword({
+                  email,
+                  password,
+                });
+                if (error)
+                  setMessage(
+                    "Sign-in failed. Check your credentials and try again.",
+                  );
+                else window.location.assign("/admin");
+              } catch {
                 setMessage(
-                  "Sign-in failed. Check your credentials and try again.",
+                  "Could not connect. Check your internet connection and try again.",
                 );
-              else window.location.assign("/admin");
+              } finally {
+                setBusy(false);
+              }
             }}
           >
             <label htmlFor="email">Email</label>
@@ -61,12 +69,21 @@ export default function Login() {
             <label htmlFor="password">Password</label>
             <input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <button
+              type="button"
+              className="mt-2 text-sm"
+              aria-pressed={showPassword}
+              aria-controls="password"
+              onClick={() => setShowPassword((value) => !value)}
+            >
+              {showPassword ? "Hide password" : "Show password"}
+            </button>
             <button className="primary mt-5 w-full" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </button>

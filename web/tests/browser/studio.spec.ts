@@ -86,3 +86,47 @@ test("tailored copies preserve the master and export the edited content", async 
   await page.goto("/resume");
   await expect(page.locator("main")).toContainText("Python · TestComplete");
 });
+
+test("mobile navigation supports Escape, outside clicks, and current-page state", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/projects");
+  await expect(page.locator('#main-nav a[href="/projects"]')).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  const toggle = page.getByRole("button", { name: "Menu", exact: true });
+  await toggle.click();
+  await page.getByRole("link", { name: "Resume", exact: true }).focus();
+  await page.keyboard.press("Escape");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  // Click below the open dropdown, where the page is actually exposed.
+  await page.mouse.click(375, 820);
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.goto("/missing-page");
+  await expect(
+    page.getByRole("heading", { name: "This page wandered off." }),
+  ).toBeVisible();
+});
+
+test("sticky editor actions save edits and remain reachable while scrolling", async ({
+  page,
+}) => {
+  await page.goto("/admin?demo=1");
+  await page.locator("#name").fill("Muzammil Patel");
+  const bar = page.getByLabel("Resume actions");
+  await bar.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("status").first()).toContainText(
+    "Saved in this demo session",
+  );
+  await expect(
+    bar.getByRole("button", { name: "Save changes", exact: true }),
+  ).toBeDisabled();
+  await page.locator("#education").scrollIntoViewIfNeeded();
+  await expect(
+    bar.getByRole("button", { name: "Export PDF", exact: true }),
+  ).toBeInViewport();
+});

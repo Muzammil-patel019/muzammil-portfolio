@@ -4,6 +4,8 @@ Next.js App Router, React, TypeScript, Tailwind CSS, Supabase Auth/Postgres, and
 
 ## Run locally
 
+Use Node.js 24 LTS (the app requires Node.js 22 or newer). A `.nvmrc` file pins the tested major version. On Windows PowerShell, use `npm.cmd` if script policy blocks `npm.ps1`.
+
 Use the existing checkout; no worktree is necessary.
 
 ```sh
@@ -29,6 +31,7 @@ Repeatable browser checks: run `npx playwright install chromium` once, then `npm
 
 ## Your workflow
 
+- After sign-in, the newest master profile opens automatically; if no master exists, the newest tailored version opens. The sticky action bar keeps save/export controls available while scrolling.
 - Open `/admin` and edit your name, contact details, summary, skills, project dates, project tools, responsibilities, and education. Add/remove projects as needed.
 - For CT-Incisive, edit **Project tools** to reflect your actual work. A private tailored version can emphasize Java/Selenium while a different version retains Python/TestComplete. Nothing is inferred or silently replaced.
 - Paste a JD to see recognized skills already present and missing. This is deterministic keyword matching, not an AI model or an ATS score. “Prioritize matching skills” reorders existing skills only. Missing skills are never automatically added.

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { browserClient } from "@/lib/supabase";
 import { resumeSchema, analyzeJD, type Resume } from "@/lib/resume";
 import { resumeFilename } from "@/lib/resume-filename";
+import { initialVersion } from "@/lib/versions";
 import seed from "@/lib/seed.json";
 import { ResumePreview } from "./ResumePreview";
 type Version = {
@@ -57,6 +58,23 @@ export function Editor() {
         if (!r.ok) throw Error(body.error);
         if (mounted) {
           setVersions(body);
+          const initial = initialVersion(body as Version[]);
+          if (initial) {
+            const parsed = resumeSchema.safeParse(initial.document);
+            if (parsed.success) {
+              setSelected(initial);
+              setResume(parsed.data);
+              setName(initial.name);
+              setKind(initial.kind);
+              setMessage(
+                `Opened ${initial.name}. Your public portfolio is unchanged.`,
+              );
+            } else {
+              setMessage(
+                "This saved version has invalid fields. Import a valid backup or choose another version.",
+              );
+            }
+          }
           setReady(true);
         }
       } catch (e) {
@@ -92,8 +110,15 @@ export function Editor() {
       !window.confirm("Discard unsaved changes and open this version?")
     )
       return;
+    const parsed = resumeSchema.safeParse(structuredClone(v.document));
+    if (!parsed.success) {
+      setMessage(
+        "This version has invalid fields. Import a valid backup instead.",
+      );
+      return;
+    }
     setSelected(v);
-    setResume(resumeSchema.parse(structuredClone(v.document)));
+    setResume(parsed.data);
     setName(v.name);
     setKind(v.kind);
     setDirty(false);
@@ -293,6 +318,26 @@ export function Editor() {
             </button>
           )}
         </header>
+        <div className="studio-actionbar" aria-label="Resume actions">
+          <div>
+            <strong>{selected?.name || "New resume"}</strong>
+            <span>
+              {dirty ? "Unsaved changes" : "Changes saved or ready to edit"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="primary"
+              disabled={busy || (!dirty && !!selected)}
+              onClick={() => save()}
+            >
+              Save changes
+            </button>
+            <button disabled={busy} onClick={pdf}>
+              Export PDF
+            </button>
+          </div>
+        </div>
         {demo && (
           <div className="notice mb-5">
             <b>Local demo.</b> No login or database is connected. Saves last
@@ -319,6 +364,7 @@ export function Editor() {
               onChange={(e) => {
                 setName(e.target.value);
                 setDirty(true);
+                setMessage("");
               }}
             />
             <label htmlFor="kind">Purpose</label>
@@ -328,6 +374,7 @@ export function Editor() {
               onChange={(e) => {
                 setKind(e.target.value as "master" | "tailored");
                 setDirty(true);
+                setMessage("");
               }}
             >
               <option value="master">Master profile</option>

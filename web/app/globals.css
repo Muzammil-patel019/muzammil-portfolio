@@ -289,3 +289,31 @@
 .resume-comfortable li {
   margin-bottom: 9px;
 }
+
+.studio-actionbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px solid #d4cedd;
+  border-radius: 10px;
+  background: #fffdf8f5;
+  box-shadow: 0 4px 16px #26232e0a;
+  backdrop-filter: blur(10px);
+}
+.studio-actionbar strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.studio-actionbar span {
+  display: block;
+  font-size: 11px;
+  color: #65616d;
+}
