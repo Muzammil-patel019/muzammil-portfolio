@@ -1,5 +1,5 @@
 import { Header } from "@/components/Header";
-import { Desk } from "@/components/Desk";
+import { WorkShowcase } from "@/components/WorkShowcase";
 import { Projects } from "@/components/Projects";
 import { publicResume } from "@/lib/server";
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export default async function Home() {
               </a>
             </div>
           </div>
-          <Desk />
+          <WorkShowcase projects={r.projects} />
         </section>
         <section className="section" id="experience">
           <div className="section-heading">

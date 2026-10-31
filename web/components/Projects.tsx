@@ -20,7 +20,7 @@ export function Projects({ projects }: { projects: Resume["projects"] }) {
         {projects
           .filter((p) => filter === "All work" || p.type === filter)
           .map((p) => (
-            <article key={p.id} className="card">
+            <article key={p.id} id={`project-${p.id}`} className="card">
               <p className="meta">
                 {p.client.toUpperCase()} / {p.dates}
               </p>
