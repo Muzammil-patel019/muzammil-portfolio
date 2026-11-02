@@ -40,6 +40,13 @@ test("PostgreSQL RLS isolates private versions and permits only owner publishing
         return tx.query(sql, params);
       });
     }
+    await db.exec(await readFile(new URL('../supabase/learning.sql', import.meta.url), 'utf8'));
+    await asUser('authenticated', owner, "insert into public.learning_progress(owner_id,document) values ($1,'{}')", [owner]);
+    assert.equal((await asUser('authenticated', other, 'select * from public.learning_progress')).rows.length, 0);
+    await assert.rejects(asUser('anon', '', 'select * from public.learning_progress'));
+    await assert.rejects(asUser('authenticated', other, "insert into public.learning_progress(owner_id,document) values ($1,'{}')", [other]));
+    assert.equal((await asUser('authenticated', owner, 'update public.learning_progress set revision=2 where revision=1 returning revision')).rows.length, 1);
+    assert.equal((await asUser('authenticated', owner, 'update public.learning_progress set revision=3 where revision=1 returning revision')).rows.length, 0);
     const inserted = await asUser(
       "authenticated",
       owner,

@@ -57,3 +57,17 @@ test('streak counts once daily, continues, and resets after a missed day', async
   await expect(page.locator('#streak')).toHaveText('1 day');
   await expect(page.locator('#best-streak')).toHaveText('Best: 2 days');
 });
+
+test('visual explanations advance and replay', async ({ page }) => {
+  await page.goto('/learning/index.html');
+  await expect(page.locator('.visual-step')).toContainText('Start with a list');
+  for (let i=0;i<3;i++) await page.getByRole('button',{name:'Next step'}).click();
+  await expect(page.locator('.visual-step')).toContainText('original list stays unchanged');
+  await page.getByRole('button',{name:'Replay'}).click();
+  await expect(page.locator('.step-counter')).toHaveText('Step 1 of 4');
+});
+
+test('anonymous learning API access is rejected', async ({ request }) => {
+  expect((await request.get('/api/learning')).status()).toBe(401);
+  expect((await request.post('/api/learning',{data:{document:{},revision:0}})).status()).toBe(401);
+});
