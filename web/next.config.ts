@@ -12,7 +12,7 @@ const config: NextConfig = {
         ],
       },
       {
-        source: "/learning/index.html",
+        source: "/learning/:document(lab|lab.html|index.html)",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
