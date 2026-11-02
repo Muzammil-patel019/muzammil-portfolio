@@ -71,3 +71,15 @@ test('anonymous learning API access is rejected', async ({ request }) => {
   expect((await request.get('/api/learning')).status()).toBe(401);
   expect((await request.post('/api/learning',{data:{document:{},revision:0}})).status()).toBe(401);
 });
+
+test('learning lessons load inside the sync page', async ({ page, request }) => {
+  const response = await request.get('/learning/index.html');
+  expect(response.headers()['x-frame-options']).toBe('SAMEORIGIN');
+  expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
+  expect((await request.get('/login')).headers()['x-frame-options']).toBe('DENY');
+  await page.goto('/learning');
+  const lab = page.frameLocator('iframe[title="Interactive learning lab"]');
+  await expect(lab.getByRole('heading', {name:'Collections and mutability'})).toBeVisible();
+  await lab.getByRole('button', {name:'Next step'}).click();
+  await expect(lab.locator('.step-counter')).toHaveText('Step 2 of 4');
+});

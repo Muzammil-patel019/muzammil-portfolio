@@ -12,6 +12,13 @@ const config: NextConfig = {
         ],
       },
       {
+        source: "/learning/index.html",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
         source: "/admin/:path*",
         headers: [
           { key: "Cache-Control", value: "no-store" },
