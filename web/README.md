@@ -69,3 +69,15 @@ No paid AI service, AI key, or external JD upload is required. JDs stay in the c
 ## Updating an extracted Windows copy
 
 If you extract an updated ZIP over the same folder, preserve your `web/.env.local`; it is not included in the ZIP. Stop the server with Ctrl+C before replacing files. Find the `web` folder that contains both `package.json` and your `.env.local`, then run `npm.cmd ci --include=optional` and `npm.cmd run dev`. ZIP tools sometimes create a nested second project folder; start the server from the updated `web` folder, not the old parent. Supabase-saved versions live in your database and are not removed when you replace app code. Do not delete your Supabase project or owner user to update the app.
+
+## Learning lab
+
+Open `/learning/index.html` in the Next.js app, or `/learning/` on the static portfolio. The checked-in `learning/` assets are mirrored in `web/public/learning/`; keep both copies identical. The hub includes nine lessons, explanatory quizzes, local code scratchpads, reference solutions, and a preparation plan through December 20, 2026. The interview is after that date; no exact interview date is assumed. Progress and drafts use the browser's `mp-learning-v1` localStorage key, with a confirmed reset. There is no code execution or cross-device sync. Practice completion is self-reported.
+
+Daily streaks count lesson completion, correct quiz answers (including review), or self-reviewed exercises once per calendar day in Asia/Kolkata. The current streak remains active until a full day is missed; the best streak and seven-day activity strip persist alongside progress. Mobile layouts use a sticky subject/continue toolbar, horizontal lesson navigation, larger answer targets, and 16px scratchpad text.
+
+### Online learning setup
+
+Apply `supabase/learning.sql` after the existing schema in your Supabase SQL editor. Use the existing owner account and environment configuration. Open `/learning` in the Next.js deployment and sign in. Choose **Save this device** to upload existing local progress, or **Load online** to restore it on another device; replacement requires confirmation. Subsequent changes save automatically while connected. Version checks block stale overwrites. After an offline failure, local data remains saved: reconnect using one of those two choices. The standalone GitHub Pages learning page remains browser-local because it has no authenticated API. Sign-out retains the browser's local copy; use the confirmed reset on shared devices. No Supabase migration or live deployment was performed by this source change.
+
+All nine lessons include manually stepped explanations with replay and reduced-motion support.

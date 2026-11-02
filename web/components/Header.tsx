@@ -49,6 +49,7 @@ export function Header() {
             ["/", "Home"],
             ["/projects", "Projects"],
             ["/blog", "Blog"],
+            ["/learning", "Learning"],
             ["/resume", "Resume"],
             ["/links", "Links"],
             ["/#contact", "Contact"],

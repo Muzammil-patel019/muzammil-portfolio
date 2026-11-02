@@ -47,7 +47,7 @@ export default function Login() {
                   setMessage(
                     "Sign-in failed. Check your credentials and try again.",
                   );
-                else window.location.assign("/admin");
+                else window.location.assign(new URLSearchParams(window.location.search).get("next") === "learning" ? "/learning" : "/admin");
               } catch {
                 setMessage(
                   "Could not connect. Check your internet connection and try again.",
