@@ -69,6 +69,6 @@ export default function Learning() {
       </>}
       <p role="status" style={{fontSize:13,margin:0}}>{message}</p>
     </div>
-    <iframe ref={frame} title="Interactive learning lab" src="/learning/index.html" style={{border:0,width:'100%',flex:1}} />
+    <iframe ref={frame} title="Interactive learning lab" src="/learning/lab.html" style={{border:0,width:'100%',flex:1}} />
   </main>;
 }

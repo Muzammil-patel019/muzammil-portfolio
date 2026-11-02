@@ -73,7 +73,7 @@ test('anonymous learning API access is rejected', async ({ request }) => {
 });
 
 test('learning lessons load inside the sync page', async ({ page, request }) => {
-  const response = await request.get('/learning/index.html');
+  const response = await request.get('/learning/lab.html');
   expect(response.headers()['x-frame-options']).toBe('SAMEORIGIN');
   expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
   expect((await request.get('/login')).headers()['x-frame-options']).toBe('DENY');
