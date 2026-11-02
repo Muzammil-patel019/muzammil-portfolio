@@ -60,9 +60,9 @@ test('streak counts once daily, continues, and resets after a missed day', async
 
 test('visual explanations advance and replay', async ({ page }) => {
   await page.goto('/learning/index.html');
-  await expect(page.locator('.visual-step')).toContainText('Start with a list');
+  await expect(page.locator('.visual-step')).toContainText('Create a list');
   for (let i=0;i<3;i++) await page.getByRole('button',{name:'Next step'}).click();
-  await expect(page.locator('.visual-step')).toContainText('original list stays unchanged');
+  await expect(page.locator('.visual-step')).toContainText('passing assert prints nothing');
   await page.getByRole('button',{name:'Replay'}).click();
   await expect(page.locator('.step-counter')).toHaveText('Step 1 of 4');
 });
@@ -82,4 +82,21 @@ test('learning lessons load inside the sync page', async ({ page, request }) => 
   await expect(lab.getByRole('heading', {name:'Collections and mutability'})).toBeVisible();
   await lab.getByRole('button', {name:'Next step'}).click();
   await expect(lab.locator('.step-counter')).toHaveText('Step 2 of 4');
+});
+
+ test('phone walkthrough selection and playback', async ({page}) => {
+  await page.clock.install();
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/learning/index.html');
+  await page.locator('.trace-code button').nth(2).click();
+  await expect(page.locator('.trace-state')).toContainText('b → [1, 2, 3]');
+  await page.getByRole('button',{name:'← Back',exact:true}).click();
+  await expect(page.locator('.step-counter')).toHaveText('Step 2 of 4');
+  await page.getByRole('button',{name:'Play explanation',exact:true}).click();
+  await page.clock.runFor(6500);
+  await expect(page.locator('.step-counter')).toHaveText('Step 3 of 4');
+  await page.getByRole('button',{name:'Pause explanation',exact:true}).click();
+  await page.clock.runFor(13000);
+  await expect(page.locator('.step-counter')).toHaveText('Step 3 of 4');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
