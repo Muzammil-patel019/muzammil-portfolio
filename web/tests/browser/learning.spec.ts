@@ -72,16 +72,14 @@ test('anonymous learning API access is rejected', async ({ request }) => {
   expect((await request.post('/api/learning',{data:{document:{},revision:0}})).status()).toBe(401);
 });
 
-test('learning lessons load inside the sync page', async ({ page, request }) => {
+test('learning hub requires sign-in and lesson document permits same-origin frames', async ({ page, request }) => {
   const response = await request.get('/learning/lab.html');
   expect(response.headers()['x-frame-options']).toBe('SAMEORIGIN');
   expect(response.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
   expect((await request.get('/login')).headers()['x-frame-options']).toBe('DENY');
   await page.goto('/learning');
-  const lab = page.frameLocator('iframe[title="Interactive learning lab"]');
-  await expect(lab.getByRole('heading', {name:'Collections and mutability'})).toBeVisible();
-  await lab.getByRole('button', {name:'Next step'}).click();
-  await expect(lab.locator('.step-counter')).toHaveText('Step 2 of 4');
+  await expect(page.getByRole('link',{name:'Sign in to start learning'})).toBeVisible();
+  await expect(page.locator('iframe')).toHaveCount(0);
 });
 
  test('phone walkthrough selection and playback', async ({page}) => {
@@ -98,5 +96,43 @@ test('learning lessons load inside the sync page', async ({ page, request }) => 
   await page.getByRole('button',{name:'Pause explanation',exact:true}).click();
   await page.clock.runFor(13000);
   await expect(page.locator('.step-counter')).toHaveText('Step 3 of 4');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+});
+
+test('prediction game gives hints and advances', async ({page}) => {
+  await page.goto('/learning/index.html');
+  await expect(page.locator('body')).not.toContainText('Ascendion');
+  await page.locator('.game-options button').filter({hasText:'unexpected error'}).click();
+  await expect(page.locator('.game-feedback')).toContainText('Hint:');
+  await page.getByRole('button',{name:'a → [1, 2]',exact:true}).click();
+  await expect(page.locator('.game-feedback')).toContainText('You got it');
+  await page.getByRole('button',{name:'Next round'}).click();
+  await expect(page.locator('.game-round')).toHaveText('Round 2 of 4');
+  await page.getByRole('button',{name:'Java',exact:true}).click();
+  await expect(page.locator('#lesson .analogy')).toContainText('notebooks');
+  await expect(page.locator('.game-round')).toHaveText('Round 1 of 3');
+});
+
+test('video classroom loads on request and has a direct fallback', async ({page}) => {
+  await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({contentType:'text/html',body:'<p>Player test stub</p>'}));
+  await page.goto('/learning/index.html');
+  await expect(page.locator('.course-video')).toHaveCount(0);
+  await expect(page.locator('.video-card')).toHaveCount(5);
+  await page.getByRole('button',{name:'Load video: Python foundations',exact:true}).click();
+  await expect(page.locator('.course-video')).toHaveAttribute('src','https://www.youtube-nocookie.com/embed/rfscVS0vtbw');
+  await expect(page.locator('.video-card').first().getByRole('link')).toHaveAttribute('href','https://www.youtube.com/watch?v=rfscVS0vtbw');
+});
+
+test('automation workshops and original practice interview are usable', async ({page}) => {
+  await page.goto('/learning/index.html');
+  await expect(page.locator('#module-library > details')).toHaveCount(12);
+  await page.getByText('5. API testing',{exact:true}).click();
+  await expect(page.locator('#module-library')).toContainText('requests.get');
+  await expect(page.locator('.mock-guide')).toBeHidden();
+  await page.getByRole('button',{name:'Reveal answer guide',exact:true}).click();
+  await expect(page.locator('.mock-guide')).toBeVisible();
+  await page.getByRole('button',{name:'Another question'}).click();
+  await expect(page.locator('.mock-guide')).toBeHidden();
+  await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });

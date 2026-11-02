@@ -83,3 +83,7 @@ Apply `supabase/learning.sql` after the existing schema in your Supabase SQL edi
 All nine lessons include manually stepped explanations with replay and reduced-motion support.
 
 The sync wrapper embeds `/learning/lab.html`, a copy of the learning HTML entry point. Keep it aligned with `public/learning/index.html` when editing the page. A distinct document name avoids Vercel's index URL normalization colliding with the `/learning` wrapper. Same-origin frame headers cover both `lab.html` and its extensionless form.
+
+The learning hub now starts with sign-in before mounting lessons. Public curriculum assets remain accessible directly; this is a sign-in entry flow, not a restriction on public lesson content. Private progress is still protected by the API and database policies. Each lesson includes a goal, everyday analogy, glossary and a prediction game; successful game rounds count as a daily study activity. No additional database migration is required.
+
+The video classroom loads five third-party YouTube embeds only after a user click and provides direct viewing links. External playback has not been verified in this environment. Twelve automation workshops and an original practice interview cover programming/OOP, pytest, Selenium, Playwright, API testing, architecture, CI/CD/Git, QA/Agile, supplemental SQL, coding, debugging and optional AI testing. Sources and evidence levels appear in the pathway. These workshops do not change the nine-lesson completion percentage. No fixed employer syllabus or guaranteed question list is claimed.
