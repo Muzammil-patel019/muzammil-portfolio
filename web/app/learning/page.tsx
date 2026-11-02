@@ -59,6 +59,7 @@ export default function Learning() {
     window.addEventListener('message',receive);
     return () => {data?.subscription.unsubscribe();window.removeEventListener('message',receive);};
   }, [db]);
+  if (!signed) return <main className="studio" style={{padding:'32px 20px'}}><div className="panel" style={{maxWidth:560,margin:'40px auto'}}><a href="/">← Portfolio</a><p>YOUR PERSONAL LEARNING SPACE</p><h1>Learn by doing.</h1><p>Explore Python, pytest and Java through visual walkthroughs, prediction games and coding challenges. Keep your streak and progress together.</p><a className="button" href="/login?next=learning">Sign in to start learning →</a>{!db && <p>Learning sign-in needs account configuration. Please check back shortly.</p>}<p>Use your existing owner account. Your progress stays private.</p></div></main>;
   return <main style={{height:'100dvh',display:'flex',flexDirection:'column'}}>
     <div className="studio" style={{minHeight:0,padding:'12px 18px'}}>
       <strong>Learning sync</strong>{' '}

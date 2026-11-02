@@ -86,7 +86,7 @@
     clearInterval(playback); playback = null;
     const l = lessons.find(l => l.id === selected), s = record();
     // Only trusted, checked-in curriculum is inserted as markup. Drafts use textarea.value.
-    $('lesson').innerHTML = `<p class="eyebrow">${l.track} / STUDY SESSION</p><h2>${l.title}</h2><p>${l.body}</p><pre><code id="example"></code></pre><label class="check"><input id="read" type="checkbox"> I can explain this concept</label><hr><h3>Check your understanding</h3><form id="quiz"><fieldset><legend>${l.question}</legend>${l.options.map((o,i) => `<label class="option"><input required type="radio" name="answer" value="${i}"> ${o}</label>`).join('')}</fieldset><button type="submit">Check answer</button></form><p id="feedback" role="status"></p><hr><h3>Put it into practice</h3><p>${l.challenge}</p><label for="draft">Your code or approach</label><textarea id="draft" maxlength="20000" rows="9" spellcheck="false" placeholder="Write your solution here…"></textarea><p class="storage-note">Scratchpad only. Code is not executed. Run Python / pytest / Java locally to verify your solution.</p><details><summary>Show reference solution and checks</summary><pre><code id="solution"></code></pre></details><label class="check"><input id="practice" type="checkbox"> I tested my solution locally and reviewed the edge cases</label><button id="next">Next lesson →</button>`;
+    $('lesson').innerHTML = `<p class="eyebrow">${l.track} / STUDY SESSION</p><h2>${l.title}</h2><div class="lesson-goal"><strong>Your goal · about 10–15 minutes</strong><p>${l.goal}</p><a href="#video-library">Watch video</a> · <a href="#concept">Understand</a> · <a href="#game">Play</a> · <a href="#quiz">Quiz</a> · <a href="#draft">Practice</a></div><h3 id="concept">Think of it this way</h3><p class="analogy">${l.analogy}</p><p>${l.body}</p><details class="terms"><summary>Words made simple</summary><p>${l.terms}</p></details><pre><code id="example"></code></pre><label class="check"><input id="read" type="checkbox"> I can explain this concept</label><hr><h3>Check your understanding</h3><form id="quiz"><fieldset><legend>${l.question}</legend>${l.options.map((o,i) => `<label class="option"><input required type="radio" name="answer" value="${i}"> ${o}</label>`).join('')}</fieldset><button type="submit">Check answer</button></form><p id="feedback" role="status"></p><hr><h3>Put it into practice</h3><p>${l.challenge}</p><label for="draft">Your code or approach</label><textarea id="draft" maxlength="20000" rows="9" spellcheck="false" placeholder="Write your solution here…"></textarea><p class="storage-note">Scratchpad only. Code is not executed. Run Python / pytest / Java locally to verify your solution.</p><details><summary>Show reference solution and checks</summary><pre><code id="solution"></code></pre></details><label class="check"><input id="practice" type="checkbox"> I tested my solution locally and reviewed the edge cases</label><button id="next">Next lesson →</button>`;
     const visual = document.createElement('section');
     visual.className = 'visual-explanation';
     visual.innerHTML = '<p class="eyebrow">PROGRAM WALKTHROUGH</p><h3>Follow the code</h3><p>Tap a line or move through the steps. This is an illustrated trace, not a code runner.</p><div class="trace-code" aria-label="Program lines"></div><p class="visual-step" aria-live="polite"></p><div class="trace-state" aria-label="Values and output"></div><div class="trace-controls"><button type="button" class="previous">← Back</button><button type="button" class="advance">Next step →</button><button type="button" class="play">Play explanation</button></div><p class="step-counter"></p>';
@@ -126,6 +126,44 @@
       }, 6500);
     };
     $('example').parentElement.after(visual); show();
+    const game = document.createElement('section');
+    game.id = 'game'; game.className = 'prediction-game';
+    game.innerHTML = '<p class="eyebrow">MINI GAME / PREDICT → REVEAL</p><h3>Be the computer</h3><p>Read the highlighted instruction. Which state comes next? Pick a card to reveal the explanation.</p><p class="game-round"></p><pre class="game-code"></pre><div class="game-options"></div><p class="game-feedback" role="status"></p><button class="game-next" type="button" hidden>Next round →</button><p class="game-score"></p>';
+    let round = 0, score = 0, attempts = 0;
+    function drawRound() {
+      const current = steps[round];
+      game.querySelector('.game-round').textContent = `Round ${round + 1} of ${steps.length}`;
+      game.querySelector('.game-code').textContent = current.code;
+      game.querySelector('.game-feedback').textContent = '';
+      game.querySelector('.game-next').hidden = true;
+      const options = [...new Set([current.state, steps[(round + 1) % steps.length].state, 'The program stops here with an unexpected error.'])];
+      options.sort(() => Math.random() - .5);
+      let answered = false, roundGuesses = 0;
+      game.querySelector('.game-options').replaceChildren(...options.map(option => {
+        const button = document.createElement('button'); button.textContent = option;
+        button.onclick = () => {
+          if (answered) return;
+          attempts++; roundGuesses++;
+          if (option !== current.state) {
+            button.disabled = true;
+            game.querySelector('.game-feedback').textContent = 'Almost! Hint: ' + current.explanation;
+            game.querySelector('.game-score').textContent = `${score} correct first tries · ${attempts} guesses`;
+            return;
+          }
+          answered = true;
+          if (roundGuesses === 1) score++;
+          button.classList.add('correct-card');
+          game.querySelector('.game-feedback').textContent = 'You got it! ' + current.explanation;
+          game.querySelector('.game-next').hidden = false;
+          game.querySelector('.game-next').textContent = round === steps.length - 1 ? 'Play again ↻' : 'Next round →';
+          game.querySelector('.game-score').textContent = `${round + 1} states understood. Mistakes are part of learning.`;
+          activity(); save(); summary();
+          if (!matchMedia('(prefers-reduced-motion: reduce)').matches) button.animate([{transform:'scale(.97)'},{transform:'scale(1.03)'},{transform:'scale(1)'}],{duration:350});
+        }; return button;
+      }));
+    }
+    game.querySelector('.game-next').onclick = () => {round=(round+1)%steps.length; if(round===0){score=0;attempts=0;game.querySelector('.game-score').textContent='';} drawRound();};
+    visual.after(game); drawRound();
     $('example').textContent = l.example;
     $('solution').textContent = l.solution;
     $('draft').value = s.draft || '';
@@ -166,5 +204,49 @@
     if (!confirm('Remove all learning progress and code drafts from this browser?')) return;
     state = {}; save(); render(); $('notice').textContent = 'Progress and drafts reset.';
   };
+  const videos = [
+    {id:'rfscVS0vtbw', title:'Python foundations', creator:'freeCodeCamp · Mike Dane', goal:'Focus on functions, collections and classes. Pause and reproduce one example before continuing.'},
+    {id:'cHYq1MRoyI0', title:'Testing Python with pytest', creator:'freeCodeCamp · Farhan Ali', goal:'Practice assertions, fixtures, parametrization and mocking. Write one passing and one failing test.'},
+    {id:'A74TOX803D0', title:'Java programming foundations', creator:'freeCodeCamp', goal:'Focus on control flow, collections and OOP. Explain an object and its methods in your own words.'},
+    {id:'QQliGCtqD2w', title:'Java testing with Selenium', creator:'freeCodeCamp · Rex Jones II', goal:'Follow the Page Object Model examples and browser interactions. Adapt selectors to a local practice site.'},
+    {id:'j7VZsCCnptM', title:'Python browser automation with Selenium', creator:'freeCodeCamp · Jim Shaped Coding', goal:'Use this older course for browser fundamentals. Check current Selenium documentation for changed setup and driver APIs.'}
+  ];
+  const library = $('video-library');
+  library.innerHTML = '<h3>Video classroom</h3><p>Choose a course, watch a short section, then rebuild the example. Videos load only when requested. Playback availability and captions depend on YouTube; the direct link is always available.</p>';
+  for (const video of videos) {
+    const card = document.createElement('section');card.className='video-card';
+    const heading = document.createElement('h4'); heading.textContent=video.title;
+    const credit = document.createElement('p');credit.textContent=video.creator;
+    const goal = document.createElement('p');goal.textContent=video.goal;
+    const button = document.createElement('button');button.type='button';button.textContent='Load video: '+video.title;
+    const slot = document.createElement('div');
+    button.onclick=()=>{
+      const iframe=document.createElement('iframe');iframe.src='https://www.youtube-nocookie.com/embed/'+video.id;
+      iframe.title=video.title;iframe.allow='encrypted-media; picture-in-picture; fullscreen';iframe.allowFullscreen=true;iframe.referrerPolicy='strict-origin-when-cross-origin';iframe.className='course-video';slot.replaceChildren(iframe);button.hidden=true;
+    };
+    const link=document.createElement('a');link.href='https://www.youtube.com/watch?v='+video.id;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Watch on YouTube ↗';
+    card.append(heading,credit,goal,button,document.createTextNode(' '),link,slot);library.append(card);
+  }
+  const modules = window.AUTOMATION_MODULES;
+  const moduleLibrary=$('module-library');
+  moduleLibrary.innerHTML='<h3>12 practical workshops</h3><p>For each workshop: read the concept, attempt the prompt aloud, reveal the answer guide, then complete the exercise in a local project. Workshop activity is separate from the nine-lesson completion percentage.</p>';
+  for(const [index,module] of modules.entries()) {
+    const card=document.createElement('details');card.className='workshop';
+    // Curriculum strings below are maintained in the checked-in resource file.
+    card.innerHTML=`<summary>${index+1}. ${module.title}</summary><p class="eyebrow">${module.basis}</p><h4>Learn these topics</h4><p>${module.topics}</p><p class="analogy">${module.analogy}</p><h4>Try answering</h4><p>${module.question}</p><details><summary>Reveal answer guide</summary><p>${module.answer}</p></details><h4>Build it yourself</h4><p>${module.exercise}</p><a href="${module.docs}" target="_blank" rel="noopener noreferrer">Read the official documentation ↗</a>`;
+    const recipe = document.createElement('section');
+    const title = document.createElement('h4');title.textContent='Worked example';
+    const code = document.createElement('pre');code.textContent=module.code;
+    const explanation=document.createElement('p');explanation.textContent=module.codeExplanation;
+    recipe.append(title,code,explanation);card.append(recipe);
+    moduleLibrary.append(card);
+  }
+  const mock=document.createElement('section');mock.className='prediction-game';
+  mock.innerHTML='<h3>Practice interview</h3><p>Use your own examples. Speak for 60–90 seconds before revealing the guide. These are original practice questions, not a transcript of an employer interview.</p><p class="mock-question"></p><button type="button" class="mock-answer">Reveal answer guide</button><p class="mock-guide" hidden></p><button type="button" class="mock-next">Another question →</button>';
+  let mockIndex=0;
+  function mockQuestion(){mock.querySelector('.mock-question').textContent=modules[mockIndex].question;mock.querySelector('.mock-guide').textContent=modules[mockIndex].answer;mock.querySelector('.mock-guide').hidden=true;mock.querySelector('.mock-answer').hidden=false;}
+  mock.querySelector('.mock-next').onclick=()=>{mockIndex=(mockIndex+1)%modules.length;mockQuestion();};
+  mock.querySelector('.mock-answer').onclick=()=>{mock.querySelector('.mock-guide').hidden=false;mock.querySelector('.mock-answer').hidden=true;};
+  moduleLibrary.after(mock);mockQuestion();
   render();
 })();

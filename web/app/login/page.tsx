@@ -1,8 +1,10 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { browserClient } from "@/lib/supabase";
 export default function Login() {
+  const [learningLogin, setLearningLogin] = useState(false);
+  useEffect(() => {setLearningLogin(new URLSearchParams(window.location.search).get('next') === 'learning');}, []);
   const db = useMemo(() => browserClient(), []);
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -15,9 +17,9 @@ export default function Login() {
         <Link href="/" className="text-violet-700">
           ← Portfolio
         </Link>
-        <h1 className="mt-6!">Resume studio</h1>
+        <h1 className="mt-6!">{learningLogin ? "Your learning space" : "Resume studio"}</h1>
         <p className="mt-3 text-stone-600">
-          Your experience. Your versions. Your next opportunity.
+          {learningLogin ? "Sign in to learn, play, and keep your progress." : "Your experience. Your versions. Your next opportunity."}
         </p>
         {!db ? (
           <>
