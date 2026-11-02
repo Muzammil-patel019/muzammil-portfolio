@@ -81,32 +81,50 @@
       return button;
     }));
   }
+  let playback = null;
   function render() {
+    clearInterval(playback); playback = null;
     const l = lessons.find(l => l.id === selected), s = record();
     // Only trusted, checked-in curriculum is inserted as markup. Drafts use textarea.value.
     $('lesson').innerHTML = `<p class="eyebrow">${l.track} / STUDY SESSION</p><h2>${l.title}</h2><p>${l.body}</p><pre><code id="example"></code></pre><label class="check"><input id="read" type="checkbox"> I can explain this concept</label><hr><h3>Check your understanding</h3><form id="quiz"><fieldset><legend>${l.question}</legend>${l.options.map((o,i) => `<label class="option"><input required type="radio" name="answer" value="${i}"> ${o}</label>`).join('')}</fieldset><button type="submit">Check answer</button></form><p id="feedback" role="status"></p><hr><h3>Put it into practice</h3><p>${l.challenge}</p><label for="draft">Your code or approach</label><textarea id="draft" maxlength="20000" rows="9" spellcheck="false" placeholder="Write your solution here…"></textarea><p class="storage-note">Scratchpad only. Code is not executed. Run Python / pytest / Java locally to verify your solution.</p><details><summary>Show reference solution and checks</summary><pre><code id="solution"></code></pre></details><label class="check"><input id="practice" type="checkbox"> I tested my solution locally and reviewed the edge cases</label><button id="next">Next lesson →</button>`;
-    const stories = {
-      python0: ['a → [1, 2] · Start with a list.', 'b → [1, 2] · copy() creates a separate outer list.', 'b → [1, 2, 3] · Append changes b only.', 'a → [1, 2] · The original list stays unchanged.'],
-      python1: ['Call add_item("A") with no list.', 'items is None → create a fresh empty list.', 'Append "A" → return ["A"].', 'Call again with "B" → a new list returns ["B"], not ["A", "B"].'],
-      python2: ['Create squares([2, 3]) → no values calculated yet.', 'Ask for next → yield 4, then pause.', 'Ask again → resume and yield 9.', 'Ask again → iteration ends. Values were produced one at a time.'],
-      pytest0: ['Enter pytest.raises(ValueError).', 'int("invalid") attempts conversion.', 'Python raises ValueError.', 'pytest sees the expected exception → test passes. No exception would fail this test.'],
-      pytest1: ['pytest sees the user argument in test_user.', 'It finds the fixture named user.', 'The fixture returns {name: Ada} for this test.', 'The assertion passes. The next test gets a fresh fixture value.'],
-      pytest2: ['Case 1: value = 0, expected = True.', '0 % 2 == 0 → True → pass.', 'Case 2: value = 3, expected = False.', '3 % 2 == 0 → False → pass. Each case is reported separately.'],
-      java0: ['new String("test") creates object A.', 'Another new String("test") creates object B.', 'A == B → false: two different objects.', 'A.equals(B) → true: the characters match.'],
-      java1: ['Start with an empty LinkedHashSet.', 'Add Ada → [Ada].', 'Add Ada again → [Ada]. No duplicate is added.', 'A Set tracks unique values; LinkedHashSet also preserves insertion order.'],
-      java2: ['Open the reader in try-with-resources.', 'Read the first line.', 'Leave the block → close the reader automatically.', 'If reading throws, the reader is still closed before the exception propagates.']
-    };
     const visual = document.createElement('section');
     visual.className = 'visual-explanation';
-    visual.innerHTML = '<h3>See it happen</h3><p class="visual-step" aria-live="polite"></p><button type="button">Next step →</button><p class="step-counter"></p>';
+    visual.innerHTML = '<p class="eyebrow">PROGRAM WALKTHROUGH</p><h3>Follow the code</h3><p>Tap a line or move through the steps. This is an illustrated trace, not a code runner.</p><div class="trace-code" aria-label="Program lines"></div><p class="visual-step" aria-live="polite"></p><div class="trace-state" aria-label="Values and output"></div><div class="trace-controls"><button type="button" class="previous">← Back</button><button type="button" class="advance">Next step →</button><button type="button" class="play">Play explanation</button></div><p class="step-counter"></p>';
     let step = 0;
+    const steps = l.walkthrough;
+    const lines = steps.map((part, index) => {
+      const button = document.createElement('button');
+      button.textContent = `${index + 1}  ${part.code}`;
+      button.onclick = () => { stopPlayback(); step = index; show(); };
+      visual.querySelector('.trace-code').append(button); return button;
+    });
+    function stopPlayback() {
+      clearInterval(playback); playback = null;
+      visual.querySelector('.play').textContent = 'Play explanation';
+    }
     const show = () => {
-      visual.querySelector('.visual-step').textContent = stories[l.id][step];
-      visual.querySelector('.step-counter').textContent = `Step ${step + 1} of ${stories[l.id].length}`;
-      visual.querySelector('button').textContent = step === stories[l.id].length - 1 ? 'Replay ↻' : 'Next step →';
-      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) visual.querySelector('.visual-step').animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'translateY(0)'}],{duration:250});
+      lines.forEach((line,i) => line.setAttribute('aria-pressed', String(i === step)));
+      visual.querySelector('.visual-step').textContent = steps[step].explanation;
+      visual.querySelector('.trace-state').textContent = steps[step].state;
+      visual.querySelector('.step-counter').textContent = `Step ${step + 1} of ${steps.length}`;
+      visual.querySelector('.previous').disabled = step === 0;
+      visual.querySelector('.advance').textContent = step === steps.length - 1 ? 'Replay ↻' : 'Next step →';
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        visual.querySelector('.trace-state').animate([{opacity:.2,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}],{duration:350});
+      }
     };
-    visual.querySelector('button').onclick = () => {step=(step+1)%stories[l.id].length;show();};
+    visual.querySelector('.advance').onclick = () => {stopPlayback();step=(step+1)%steps.length;show();};
+    visual.querySelector('.previous').onclick = () => {stopPlayback();step=Math.max(0,step-1);show();};
+    visual.querySelector('.play').onclick = () => {
+      if (playback) {stopPlayback();return;}
+      if (step === steps.length - 1) step = 0;
+      show(); visual.querySelector('.play').textContent = 'Pause explanation';
+      playback = setInterval(() => {
+        if (document.hidden || step === steps.length - 1) {stopPlayback();return;}
+        step++;show();
+        if (step === steps.length - 1) stopPlayback();
+      }, 6500);
+    };
     $('example').parentElement.after(visual); show();
     $('example').textContent = l.example;
     $('solution').textContent = l.solution;
