@@ -59,7 +59,7 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
     assert.equal((await asUser("authenticated", owner, "update public.subscription_plans set revision=2 where owner_id=$1 and revision=1 returning revision", [owner])).rows.length, 1);
     assert.equal((await asUser("authenticated", owner, "update public.subscription_plans set revision=3 where owner_id=$1 and revision=1 returning revision", [owner])).rows.length, 0);
     await assert.rejects(asUser("authenticated", owner, "update public.subscription_plans set owner_id=$1 where owner_id=$2", [otherOwner, owner]));
-    await assert.rejects(asUser("authenticated", owner, "delete from public.subscription_plans where owner_id=$1", [owner]));
+    await assert.rejects(asUser("anon", "", "delete from public.subscription_plans where owner_id=$1", [owner]));
 
     await asUser("authenticated", owner, "insert into public.subscription_shares(owner_id,member_id,token_hash) values ($1,$2,$3)", [owner, alice, tokenHash]);
     assert.equal((await asUser("authenticated", otherOwner, "select * from public.subscription_shares")).rows.length, 0);
@@ -86,5 +86,12 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
     await asUser("authenticated", owner, "delete from public.subscription_shares where member_id=$1", [alice]);
     assert.equal(await view(rotatedHash), null);
     await assert.rejects(asUser("authenticated", owner, "truncate public.subscription_plans"));
+    assert.equal((await asUser("authenticated", otherOwner, "delete from public.subscription_plans where owner_id=$1 returning owner_id", [owner])).rows.length, 0);
+    assert.equal((await asUser("authenticated", owner, "delete from public.subscription_plans where owner_id=$1 and revision=1 returning owner_id", [owner])).rows.length, 0);
+    await asUser("authenticated", owner, "insert into public.subscription_shares(owner_id,member_id,token_hash) values ($1,$2,$3)", [owner, alice, rotatedHash]);
+    assert.notEqual(await view(rotatedHash), null);
+    assert.equal((await asUser("authenticated", owner, "delete from public.subscription_plans where owner_id=$1 and revision=2 returning owner_id", [owner])).rows.length, 1);
+    assert.equal(await view(rotatedHash), null);
+    assert.equal((await db.query("select * from public.subscription_shares where owner_id=$1", [owner])).rows.length, 0);
   } finally { await db.close(); }
 });

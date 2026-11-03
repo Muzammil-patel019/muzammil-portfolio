@@ -15,7 +15,7 @@ drop trigger if exists subscription_updated on public.subscription_plans;
 create trigger subscription_updated before update on public.subscription_plans
   for each row execute function public.touch_resume();
 revoke all on public.subscription_plans from public, anon, authenticated;
-grant select, insert, update on public.subscription_plans to authenticated;
+grant select, insert, update, delete on public.subscription_plans to authenticated;
 
 create table if not exists public.subscription_shares (
   owner_id uuid not null references public.subscription_plans(owner_id) on delete cascade,

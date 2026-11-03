@@ -18,6 +18,14 @@ type View = {
 };
 const paid = (cycle: MemberCycle) =>
   cycle.payments.reduce((sum, p) => sum + p.amountMinor, 0);
+function displayDate(date: string, monthOnly = false) {
+  return new Intl.DateTimeFormat(
+    "en-IN",
+    monthOnly
+      ? { month: "long", year: "numeric", timeZone: "UTC" }
+      : { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" },
+  ).format(new Date(date + "T00:00:00Z"));
+}
 function countdown(date: string) {
   const days = daysUntil(date);
   return days < 0
@@ -191,7 +199,10 @@ export function SubscriptionViewer() {
                 HELLO, {view.member.name.toUpperCase()}
               </p>
               <h1>{view.plan.name}</h1>
-              <p>Your share, dates, and payments — all in one place.</p>
+              <p>
+                Your personal subscription statement. See what’s covered, what’s
+                paid, and what’s next.
+              </p>
             </div>
             <button disabled={busy} onClick={() => void refresh()}>
               {busy ? "Refreshing…" : "Refresh status"}
@@ -200,10 +211,14 @@ export function SubscriptionViewer() {
           {latest ? (
             <section className="plan-personal-summary">
               <div>
-                <span className="plan-label">YOUR LATEST SHARE</span>
+                <span className="plan-label">
+                  {displayDate(latest.startDate, true).toUpperCase()} · YOUR
+                  SHARE
+                </span>
                 <strong>{money(latest.amountMinor, latest.currency)}</strong>
                 <p>
-                  {latest.startDate} to {latest.renewalDate}
+                  {displayDate(latest.startDate)} to{" "}
+                  {displayDate(latest.renewalDate)}
                 </p>
               </div>
               <div>
@@ -260,6 +275,42 @@ export function SubscriptionViewer() {
               </small>
             </section>
           )}
+          <section className="plan-box plan-receipts">
+            <p className="plan-label">YOUR RECORD</p>
+            <h2>Payment history</h2>
+            <p>
+              Receipts confirmed by your manager, with the billing period each
+              payment covers.
+            </p>
+            {cycles.every((c) => c.payments.length === 0) ? (
+              <p>
+                No payments confirmed yet. After you pay, your manager will
+                verify receipt and record it here.
+              </p>
+            ) : (
+              <ol className="plan-receipt-list">
+                {cycles.flatMap((cycle) =>
+                  cycle.payments.map((payment, i) => (
+                    <li key={`${cycle.id}-${i}`}>
+                      <div>
+                        <strong>
+                          {money(payment.amountMinor, cycle.currency)}
+                        </strong>
+                        <span className="plan-badge settled">Received</span>
+                      </div>
+                      <h3>For {displayDate(cycle.startDate, true)}</h3>
+                      <p>
+                        Billing period: {displayDate(cycle.startDate)} –{" "}
+                        {displayDate(cycle.renewalDate)}
+                        <br />
+                        Payment received: {displayDate(payment.date)}
+                      </p>
+                    </li>
+                  )),
+                )}
+              </ol>
+            )}
+          </section>
           <section className="plan-box">
             <h2>Your billing history</h2>
             <p>
@@ -270,9 +321,11 @@ export function SubscriptionViewer() {
               <article className="plan-member-cycle" key={cycle.id}>
                 <div className="plan-section-head">
                   <div>
-                    <h3>
-                      {cycle.startDate} — {cycle.renewalDate}
-                    </h3>
+                    <h3>{displayDate(cycle.startDate, true)}</h3>
+                    <p>
+                      {displayDate(cycle.startDate)} –{" "}
+                      {displayDate(cycle.renewalDate)}
+                    </p>
                     <p>
                       {paid(cycle) === cycle.amountMinor
                         ? "Settled"
@@ -304,7 +357,7 @@ export function SubscriptionViewer() {
                     </ul>
                   </details>
                 )}
-                <PaymentLink cycle={cycle} name={view.plan.name} />
+                {cycle.id !== latest?.id && <PaymentLink cycle={cycle} name={view.plan.name} />}
                 {paid(cycle) < cycle.amountMinor && (
                   <button onClick={() => calendar(cycle, view.plan.name)}>
                     Download payment calendar date
@@ -312,6 +365,31 @@ export function SubscriptionViewer() {
                 )}
               </article>
             ))}
+          </section>
+          <section className="plan-box plan-help">
+            <h2>A few useful things</h2>
+            <details>
+              <summary>I’ve paid. Why is a balance still showing?</summary>
+              <p>
+                Your manager confirms incoming payments in PhonePe or their bank
+                before recording them. Use Refresh status after they confirm.
+              </p>
+            </details>
+            <details>
+              <summary>What does each payment cover?</summary>
+              <p>
+                Every receipt belongs to the billing period shown above it.
+                Partial payments reduce that period’s balance; older unpaid
+                periods remain separate.
+              </p>
+            </details>
+            <details>
+              <summary>Will I be charged automatically?</summary>
+              <p>
+                No. The payment button fills in a UPI request. You choose an app
+                and approve each payment yourself.
+              </p>
+            </details>
           </section>
           <p className="plan-fine-print">
             Updated {updated}. Checks for updates every minute. Dates use India
