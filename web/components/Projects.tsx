@@ -21,16 +21,18 @@ export function Projects({ projects }: { projects: Resume["projects"] }) {
           .filter((p) => filter === "All work" || p.type === filter)
           .map((p) => (
             <article key={p.id} id={`project-${p.id}`} className="card">
+              <div className="project-info">
               <p className="meta">
                 {p.client.toUpperCase()} / {p.dates}
               </p>
               <h3>{p.name}</h3>
+              <p className="tags">{p.tools.join(" · ")}</p>
+              </div>
               <ul>
                 {p.bullets.map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}
               </ul>
-              <p className="tags">{p.tools.join(" · ")}</p>
             </article>
           ))}
       </div>

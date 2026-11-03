@@ -60,9 +60,10 @@ export default function Learning() {
     return () => {data?.subscription.unsubscribe();window.removeEventListener('message',receive);};
   }, [db]);
   if (!signed) return <main className="studio" style={{padding:'32px 20px'}}><div className="panel" style={{maxWidth:560,margin:'40px auto'}}><a href="/">← Portfolio</a><p>YOUR PERSONAL LEARNING SPACE</p><h1>Learn by doing.</h1><p>Explore Python, pytest and Java through visual walkthroughs, prediction games and coding challenges. Keep your streak and progress together.</p><a className="button" href="/login?next=learning">Sign in to start learning →</a>{!db && <p>Learning sign-in needs account configuration. Please check back shortly.</p>}<p>Use your existing owner account. Your progress stays private.</p></div></main>;
-  return <main style={{height:'100dvh',display:'flex',flexDirection:'column'}}>
-    <div className="studio" style={{minHeight:0,padding:'12px 18px'}}>
-      <strong>Learning sync</strong>{' '}
+  return <main className="learning-shell">
+    <div className="learning-topbar">
+      <a className="learning-home" href="/">← Portfolio</a>
+      <strong>Learning</strong>{' '}
       {!db ? <span>Online saving needs Supabase setup. Local learning is ready below.</span> : !signed ? <a href="/login?next=learning">Sign in to save online →</a> : <>
         <button disabled={busy} onClick={()=>connect(true)}>Load online</button>{' '}
         <button disabled={busy} onClick={()=>connect(false)}>Save this device</button>{' '}
@@ -70,6 +71,6 @@ export default function Learning() {
       </>}
       <p role="status" style={{fontSize:13,margin:0}}>{message}</p>
     </div>
-    <iframe ref={frame} title="Interactive learning lab" src="/learning/lab.html" style={{border:0,width:'100%',flex:1}} />
+    <iframe ref={frame} title="Interactive learning lab" src="/learning/lab.html" className="learning-frame" />
   </main>;
 }

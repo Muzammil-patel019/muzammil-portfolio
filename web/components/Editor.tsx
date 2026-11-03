@@ -195,8 +195,9 @@ export function Editor() {
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    document.body.append(a);
+    a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   async function pdf() {
     const parsed = resumeSchema.safeParse(resume);

@@ -1,3 +1,4 @@
+import { DownloadResume } from "@/components/DownloadResume";
 import { Header } from "@/components/Header";
 import { WorkShowcase } from "@/components/WorkShowcase";
 import { Projects } from "@/components/Projects";
@@ -15,23 +16,17 @@ export default async function Home() {
               {r.name.toUpperCase()} / {r.title.toUpperCase()}
             </p>
             <h1>
-              Good software.
-              <br />
-              <em>Bad day</em>
-              <br />
-              for bugs<span className="headline-dot">.</span>
+              Test automation for healthcare software.
             </h1>
             <p className="hero-line">
-              A curious mind. A very thorough test suite.
+              Desktop and web testing · Bengaluru, India
             </p>
             <p className="intro">{r.summary}</p>
             <div className="hero-actions">
               <a className="button" href="/resume">
-                Read my resume ↗
+                Read my resume
               </a>
-              <a className="button secondary" href="/api/pdf">
-                Download PDF ↓
-              </a>
+              <DownloadResume resume={r} secondary />
               <a className="text-link" href="#experience">
                 Explore my experience ↓
               </a>
@@ -43,9 +38,7 @@ export default async function Home() {
           <div className="section-heading">
             <p className="eyebrow">01 / EXPERIENCE</p>
             <h2>
-              Serious work.
-              <br />
-              <em>Curious approach.</em>
+              Selected work.
             </h2>
           </div>
           <div className="employer">
@@ -58,15 +51,13 @@ export default async function Home() {
           <div className="section-heading">
             <p className="eyebrow">02 / TOOLKIT</p>
             <h2>
-              My kind of
-              <br />
-              <em>power tools.</em>
+              Languages and testing tools.
             </h2>
           </div>
           <div className="flex flex-wrap gap-3">
             {r.skills.map((s, i) => (
               <span
-                className="rounded-full border border-violet-300 bg-violet-100 px-4 py-2 text-sm"
+                className="skill-token"
                 key={`${s}-${i}`}
               >
                 {s}
@@ -90,9 +81,9 @@ export default async function Home() {
               </span>
             </a>
             <div className="social-links">
-              <a href="https://github.com/Muzammil-patel019">GitHub ↗</a>
+              <a href="https://github.com/Muzammil-patel019">GitHub</a>
               <a href="https://www.linkedin.com/in/muzammil-patel-375381224/">
-                LinkedIn ↗
+                LinkedIn
               </a>
             </div>
             <p className="contact-location">{r.location}</p>

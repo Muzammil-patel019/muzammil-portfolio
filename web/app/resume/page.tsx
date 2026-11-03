@@ -1,3 +1,4 @@
+import { DownloadResume } from "@/components/DownloadResume";
 import { Header } from "@/components/Header";
 import { ResumePreview } from "@/components/ResumePreview";
 import { publicResume } from "@/lib/server";
@@ -13,9 +14,8 @@ export default async function Page() {
           <h1>Experience and technical skills.</h1>
         </div>
         <div className="resume-toolbar">
-          <a className="button" href="/api/pdf">
-            Download latest PDF
-          </a>
+          <DownloadResume resume={r} label="Download latest PDF" />
+          <a className="text-link" href="/resume/print">Print / Save as PDF</a>
         </div>
         <ResumePreview resume={r} />
       </main>

@@ -116,6 +116,7 @@ test('prediction game gives hints and advances', async ({page}) => {
 test('video classroom loads on request and has a direct fallback', async ({page}) => {
   await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({contentType:'text/html',body:'<p>Player test stub</p>'}));
   await page.goto('/learning/index.html');
+  await page.getByRole('button',{name:'Videos',exact:false}).click();
   await expect(page.locator('.course-video')).toHaveCount(0);
   await expect(page.locator('.video-card')).toHaveCount(5);
   await page.getByRole('button',{name:'Load video: Python foundations',exact:true}).click();
@@ -126,8 +127,10 @@ test('video classroom loads on request and has a direct fallback', async ({page}
 test('automation workshops and original practice interview are usable', async ({page}) => {
   await page.goto('/learning/index.html');
   await expect(page.locator('#module-library > details')).toHaveCount(12);
+  await page.getByRole('button',{name:'Workshops',exact:false}).click();
   await page.getByText('5. API testing',{exact:true}).click();
   await expect(page.locator('#module-library')).toContainText('requests.get');
+  await page.getByRole('button',{name:'Interview practice',exact:true}).click();
   await expect(page.locator('.mock-guide')).toBeHidden();
   await page.getByRole('button',{name:'Reveal answer guide',exact:true}).click();
   await expect(page.locator('.mock-guide')).toBeVisible();

@@ -16,7 +16,8 @@ async function pdf(resume: Resume) {
   });
 }
 export async function GET() {
-  return pdf(await publicResume());
+  try { return await pdf(await publicResume()); }
+  catch (error) { console.error("Public PDF export failed", error); return NextResponse.json({ error: "PDF export is temporarily unavailable. Open the resume page to print or try again." }, { status: 503, headers: { "Cache-Control": "no-store" } }); }
 }
 export async function POST(req: NextRequest) {
   try {
