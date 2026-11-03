@@ -26,7 +26,7 @@ export function subscriptionUpiPayment(
     year: "numeric",
     timeZone: "UTC",
   }).format(date);
-  const note = `YT Premium — ${month} (${cycle.startDate} to ${cycle.renewalDate})`;
+  const note = `YT Premium - ${month}`;
   const params = new URLSearchParams({
     pa: youtubeUpiId,
     pn: "Muzammil",
