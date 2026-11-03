@@ -18,7 +18,7 @@ test("public pages and studio fit desktop and mobile", async ({ page }) => {
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
-        ),
+        ), `${path} at ${width}px`,
       ).toBe(true);
     }
   }

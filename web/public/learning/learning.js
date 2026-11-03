@@ -1,4 +1,5 @@
 (() => {
+  if (parent !== window) document.body.classList.add('embedded');
   const lessons = window.LESSONS;
   const key = 'mp-learning-v1';
   let state = {}, track = 'All', selected = lessons[0].id;
@@ -86,7 +87,7 @@
     clearInterval(playback); playback = null;
     const l = lessons.find(l => l.id === selected), s = record();
     // Only trusted, checked-in curriculum is inserted as markup. Drafts use textarea.value.
-    $('lesson').innerHTML = `<p class="eyebrow">${l.track} / STUDY SESSION</p><h2>${l.title}</h2><div class="lesson-goal"><strong>Your goal · about 10–15 minutes</strong><p>${l.goal}</p><a href="#video-library">Watch video</a> · <a href="#concept">Understand</a> · <a href="#game">Play</a> · <a href="#quiz">Quiz</a> · <a href="#draft">Practice</a></div><h3 id="concept">Think of it this way</h3><p class="analogy">${l.analogy}</p><p>${l.body}</p><details class="terms"><summary>Words made simple</summary><p>${l.terms}</p></details><pre><code id="example"></code></pre><label class="check"><input id="read" type="checkbox"> I can explain this concept</label><hr><h3>Check your understanding</h3><form id="quiz"><fieldset><legend>${l.question}</legend>${l.options.map((o,i) => `<label class="option"><input required type="radio" name="answer" value="${i}"> ${o}</label>`).join('')}</fieldset><button type="submit">Check answer</button></form><p id="feedback" role="status"></p><hr><h3>Put it into practice</h3><p>${l.challenge}</p><label for="draft">Your code or approach</label><textarea id="draft" maxlength="20000" rows="9" spellcheck="false" placeholder="Write your solution here…"></textarea><p class="storage-note">Scratchpad only. Code is not executed. Run Python / pytest / Java locally to verify your solution.</p><details><summary>Show reference solution and checks</summary><pre><code id="solution"></code></pre></details><label class="check"><input id="practice" type="checkbox"> I tested my solution locally and reviewed the edge cases</label><button id="next">Next lesson →</button>`;
+    $('lesson').innerHTML = `<p class="eyebrow">${l.track} / STUDY SESSION</p><h2>${l.title}</h2><div class="lesson-goal"><strong>Your goal · about 10–15 minutes</strong><p>${l.goal}</p><a href="#concept">Understand</a> · <a href="#game">Play</a> · <a href="#quiz">Quiz</a> · <a href="#draft">Practice</a></div><h3 id="concept">Think of it this way</h3><p class="analogy">${l.analogy}</p><p>${l.body}</p><details class="terms"><summary>Words made simple</summary><p>${l.terms}</p></details><pre><code id="example"></code></pre><label class="check"><input id="read" type="checkbox"> I can explain this concept</label><hr><h3>Check your understanding</h3><form id="quiz"><fieldset><legend>${l.question}</legend>${l.options.map((o,i) => `<label class="option"><input required type="radio" name="answer" value="${i}"> ${o}</label>`).join('')}</fieldset><button type="submit">Check answer</button></form><p id="feedback" role="status"></p><hr><h3>Put it into practice</h3><p>${l.challenge}</p><label for="draft">Your code or approach</label><textarea id="draft" maxlength="20000" rows="9" spellcheck="false" placeholder="Write your solution here…"></textarea><p class="storage-note">Scratchpad only. Code is not executed. Run Python / pytest / Java locally to verify your solution.</p><details><summary>Show reference solution and checks</summary><pre><code id="solution"></code></pre></details><label class="check"><input id="practice" type="checkbox"> I tested my solution locally and reviewed the edge cases</label><button id="next">Next lesson →</button>`;
     const visual = document.createElement('section');
     visual.className = 'visual-explanation';
     visual.innerHTML = '<p class="eyebrow">PROGRAM WALKTHROUGH</p><h3>Follow the code</h3><p>Tap a line or move through the steps. This is an illustrated trace, not a code runner.</p><div class="trace-code" aria-label="Program lines"></div><p class="visual-step" aria-live="polite"></p><div class="trace-state" aria-label="Values and output"></div><div class="trace-controls"><button type="button" class="previous">← Back</button><button type="button" class="advance">Next step →</button><button type="button" class="play">Play explanation</button></div><p class="step-counter"></p>';
@@ -247,6 +248,17 @@
   function mockQuestion(){mock.querySelector('.mock-question').textContent=modules[mockIndex].question;mock.querySelector('.mock-guide').textContent=modules[mockIndex].answer;mock.querySelector('.mock-guide').hidden=true;mock.querySelector('.mock-answer').hidden=false;}
   mock.querySelector('.mock-next').onclick=()=>{mockIndex=(mockIndex+1)%modules.length;mockQuestion();};
   mock.querySelector('.mock-answer').onclick=()=>{mock.querySelector('.mock-guide').hidden=false;mock.querySelector('.mock-answer').hidden=true;};
-  moduleLibrary.after(mock);mockQuestion();
+  $('interview-content').append(mock);mockQuestion();
+  function selectView(view, focus = false) {
+    document.querySelectorAll('[data-panel]').forEach(panel => {panel.hidden = panel.dataset.panel !== view;});
+    document.querySelectorAll('[data-view]').forEach(button => button.setAttribute('aria-pressed',String(button.dataset.view === view)));
+    if (view !== 'lessons') {clearInterval(playback);playback=null;}
+    if (focus) {
+      const heading=document.querySelector(`[data-panel="${view}"] h2, [data-panel="${view}"] h3`);
+      if (heading) {heading.tabIndex=-1;heading.focus({preventScroll:true});}
+    }
+  }
+  document.querySelectorAll('[data-view]').forEach(button => button.onclick = () => {selectView(button.dataset.view,true);});
+  selectView('lessons');
   render();
 })();
