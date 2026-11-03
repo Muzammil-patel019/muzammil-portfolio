@@ -8,6 +8,7 @@ import { resumeFilename } from "@/lib/resume-filename";
 import { initialVersion } from "@/lib/versions";
 import seed from "@/lib/seed.json";
 import { ResumePreview } from "./ResumePreview";
+import "./Editor.css";
 type Version = {
   id: string;
   name: string;
@@ -29,6 +30,7 @@ export function Editor() {
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
     [dirty, setDirty] = useState(false);
+  const [studioView, setStudioView] = useState<"edit" | "preview">("edit");
   const file = useRef<HTMLInputElement>(null);
   const analysis = analyzeJD(jd, resume);
   useEffect(() => {
@@ -196,7 +198,8 @@ export function Editor() {
     a.href = url;
     a.download = filename;
     document.body.append(a);
-    a.click(); a.remove();
+    a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   async function pdf() {
@@ -279,7 +282,7 @@ export function Editor() {
       </main>
     );
   return (
-    <div className="studio">
+    <div className="studio resume-studio" data-studio-view={studioView}>
       <div className="mx-auto max-w-400 p-4 md:p-8">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -338,6 +341,32 @@ export function Editor() {
               Export PDF
             </button>
           </div>
+          <div
+            className="studio-view-switch"
+            role="group"
+            aria-label="Studio view"
+          >
+            <button
+              type="button"
+              aria-pressed={studioView === "edit"}
+              onClick={() => {
+                setStudioView("edit");
+                window.scrollTo({ top: 0 });
+              }}
+            >
+              Edit fields
+            </button>
+            <button
+              type="button"
+              aria-pressed={studioView === "preview"}
+              onClick={() => {
+                setStudioView("preview");
+                window.scrollTo({ top: 0 });
+              }}
+            >
+              Preview resume
+            </button>
+          </div>
         </div>
         {demo && (
           <div className="notice mb-5">
@@ -352,11 +381,8 @@ export function Editor() {
               ? "Unsaved changes."
               : "Private by default. Save a version without changing your live website.")}
         </div>
-        <fieldset
-          disabled={busy}
-          className="grid min-w-0 items-start gap-5 xl:grid-cols-[240px_minmax(0,1fr)_minmax(0,1fr)]"
-        >
-          <aside className="panel">
+        <fieldset disabled={busy} className="studio-workspace">
+          <aside className="panel studio-versions">
             <h2>Versions</h2>
             <label htmlFor="version-name">Version name</label>
             <input
@@ -450,7 +476,7 @@ export function Editor() {
               }}
             />
           </aside>
-          <section className="panel min-w-0">
+          <section className="panel min-w-0 studio-fields">
             <h2>Edit your experience</h2>
             <label htmlFor="resume-layout">Resume layout</label>
             <select
@@ -638,8 +664,6 @@ export function Editor() {
               value={resume.education}
               onChange={(e) => change({ ...resume, education: e.target.value })}
             />
-          </section>
-          <section className="min-w-0 space-y-5">
             <div className="panel">
               <h2>Job description match</h2>
               <label htmlFor="jd">Paste a job description</label>
@@ -690,6 +714,19 @@ export function Editor() {
                 </div>
               )}
             </div>
+          </section>
+          <section
+            className="studio-preview-column"
+            aria-label="Resume preview panel"
+          >
+            <div className="studio-preview-heading">
+              <div>
+                <h2>Live preview</h2>
+                <p>
+                  Updates as you edit. Scroll inside the document to read more.
+                </p>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <button className="primary" disabled={busy} onClick={pdf}>
                 {busy ? "Working…" : "Download PDF"}
@@ -698,7 +735,14 @@ export function Editor() {
                 Publish to portfolio
               </button>
             </div>
-            <ResumePreview resume={resume} />
+            <div
+              className="studio-preview-scroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Scrollable resume preview"
+            >
+              <ResumePreview resume={resume} />
+            </div>
           </section>
         </fieldset>
       </div>

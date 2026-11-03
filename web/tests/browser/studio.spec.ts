@@ -131,37 +131,21 @@ test("sticky editor actions save edits and remain reachable while scrolling", as
   ).toBeInViewport();
 });
 
-test("home showcases published project details instead of the inspection game", async ({
-  page,
-}) => {
+test("home presents each selected project once and links to filterable details", async ({ page }) => {
   await page.goto("/");
-  const showcase = page.getByRole("complementary", {
-    name: "Selected automation work",
-  });
-  await expect(
-    showcase.getByRole("heading", { name: "IGT Azurion" }),
-  ).toBeVisible();
-  await showcase.getByRole("button", { name: "Next project" }).click();
-  await expect(showcase.getByRole("heading", { name: "Elever" })).toBeVisible();
-  await expect(showcase).toContainText("Java");
-  await showcase
-    .getByRole("button", { name: "CT-Incisive", exact: true })
-    .click();
-  await expect(
-    showcase.getByRole("heading", { name: "CT-Incisive" }),
-  ).toBeVisible();
-  await showcase.getByRole("link", { name: "Explore this project" }).click();
+  await expect(page.getByRole("heading", { name: "Muzammil Patel." })).toBeVisible();
+  await expect(page.locator(".project-teaser")).toHaveCount(3);
+  await expect(page.getByRole("heading", { name: "IGT Azurion" })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Elever" })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "CT-Incisive" })).toHaveCount(1);
+  await page.getByRole("link", { name: "Read about CT-Incisive" }).click();
   await expect(page).toHaveURL(/\/projects#project-ct$/);
   await expect(page.locator("#project-ct")).toBeVisible();
+  await page.getByRole("button", { name: "Desktop", exact: true }).click();
+  await expect(page.locator(".experience-grid article")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "IGT Azurion" })).toBeVisible();
+  await page.getByRole("button", { name: "Web", exact: true }).click();
+  await expect(page.locator(".experience-grid article")).toHaveCount(2);
   await page.goto("/");
-  await page.getByRole("button", { name: "Previous project" }).focus();
-  await page.keyboard.press("Enter");
-  await expect(
-    page
-      .getByRole("complementary")
-      .getByRole("heading", { name: "CT-Incisive" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Run an inspection" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Open learning hub" })).toHaveAttribute("href", "/learning");
 });
