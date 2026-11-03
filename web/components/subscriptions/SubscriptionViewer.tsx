@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { daysUntil, money } from "@/lib/subscriptions";
+import { subscriptionUpiPayment } from "@/lib/subscription-upi";
 type MemberCycle = {
   id: string;
   startDate: string;
@@ -64,6 +65,45 @@ function calendar(cycle: MemberCycle, name: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function PaymentLink({ cycle, name }: { cycle: MemberCycle; name: string }) {
+  const payment = subscriptionUpiPayment(name, cycle);
+  const [copied, setCopied] = useState("");
+  if (!payment) return null;
+  return (
+    <div className="plan-upi-payment">
+      <a className="plan-button" href={payment.href}>
+        Pay {money(cycle.amountMinor - paid(cycle), cycle.currency)} with UPI
+      </a>
+      <p>
+        Choose PhonePe if your phone asks which app to open. Check the recipient
+        name in the app before approving.
+      </p>
+      <p>
+        <strong>UPI ID:</strong> {payment.upiId}
+        <br />
+        <strong>Payment note:</strong> {payment.note}
+      </p>
+      <button
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(payment.upiId);
+            setCopied("UPI ID copied.");
+          } catch {
+            setCopied("Select and copy the UPI ID shown above.");
+          }
+        }}
+      >
+        Copy UPI ID
+      </button>
+      <span role="status">{copied}</span>
+      <p>
+        On a computer or if the app doesn’t open, pay this UPI ID in PhonePe
+        using the amount and note above. Your manager will confirm receipt and
+        update your balance.
+      </p>
+    </div>
+  );
 }
 export function SubscriptionViewer() {
   const [view, setView] = useState<View | null>(null),
@@ -204,6 +244,12 @@ export function SubscriptionViewer() {
               </div>
             </div>
           )}
+          {latest && subscriptionUpiPayment(view.plan.name, latest) && (
+            <section className="plan-box">
+              <h2>Pay your share</h2>
+              <PaymentLink cycle={latest} name={view.plan.name} />
+            </section>
+          )}
           {view.plan.paymentNote && (
             <section className="plan-box">
               <h2>How to pay</h2>
@@ -258,6 +304,7 @@ export function SubscriptionViewer() {
                     </ul>
                   </details>
                 )}
+                <PaymentLink cycle={cycle} name={view.plan.name} />
                 {paid(cycle) < cycle.amountMinor && (
                   <button onClick={() => calendar(cycle, view.plan.name)}>
                     Download payment calendar date
