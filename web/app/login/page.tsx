@@ -4,7 +4,12 @@ import Link from "next/link";
 import { browserClient } from "@/lib/supabase";
 export default function Login() {
   const [learningLogin, setLearningLogin] = useState(false);
-  useEffect(() => {setLearningLogin(new URLSearchParams(window.location.search).get('next') === 'learning');}, []);
+  const [subscriptionLogin, setSubscriptionLogin] = useState(false);
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    setLearningLogin(next === "learning");
+    setSubscriptionLogin(next === "subscriptions");
+  }, []);
   const db = useMemo(() => browserClient(), []);
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -17,9 +22,19 @@ export default function Login() {
         <Link href="/" className="text-violet-700">
           ← Portfolio
         </Link>
-        <h1 className="mt-6!">{learningLogin ? "Your learning space" : "Resume studio"}</h1>
+        <h1 className="mt-6!">
+          {subscriptionLogin
+            ? "Your shared plan"
+            : learningLogin
+              ? "Your learning space"
+              : "Resume studio"}
+        </h1>
         <p className="mt-3 text-stone-600">
-          {learningLogin ? "Sign in to learn, play, and keep your progress." : "Your experience. Your versions. Your next opportunity."}
+          {subscriptionLogin
+            ? "Sign in to manage your subscription, members, and payments."
+            : learningLogin
+              ? "Sign in to learn, play, and keep your progress."
+              : "Your experience. Your versions. Your next opportunity."}
         </p>
         {!db ? (
           <>
@@ -29,7 +44,9 @@ export default function Login() {
             </div>
             <Link
               className="mt-6 inline-block text-violet-700 underline"
-              href="/admin?demo=1"
+              href={
+                subscriptionLogin ? "/subscriptions?demo=1" : "/admin?demo=1"
+              }
             >
               Explore the local demo →
             </Link>
@@ -49,7 +66,17 @@ export default function Login() {
                   setMessage(
                     "Sign-in failed. Check your credentials and try again.",
                   );
-                else window.location.assign(new URLSearchParams(window.location.search).get("next") === "learning" ? "/learning" : "/admin");
+                else
+                  window.location.assign(
+                    new URLSearchParams(window.location.search).get("next") ===
+                      "subscriptions"
+                      ? "/subscriptions"
+                      : new URLSearchParams(window.location.search).get(
+                            "next",
+                          ) === "learning"
+                        ? "/learning"
+                        : "/admin",
+                  );
               } catch {
                 setMessage(
                   "Could not connect. Check your internet connection and try again.",

@@ -1,0 +1,366 @@
+import { test, expect, type Download, type Page } from "@playwright/test";
+
+const token = "a".repeat(43);
+const personalView = {
+  plan: {
+    name: "YouTube Premium",
+    paymentNote: "Pay to the manager and confirm once sent.",
+    interval: "monthly",
+  },
+  member: { id: "11111111-1111-4111-8111-111111111111", name: "Alice" },
+  cycles: [
+    {
+      id: "22222222-2222-4222-8222-222222222222",
+      startDate: "2026-11-01",
+      dueDate: "2026-11-05",
+      renewalDate: "2026-12-01",
+      currency: "INR",
+      amountMinor: 3367,
+      payments: [{ amountMinor: 1000, date: "2026-11-02" }],
+    },
+  ],
+};
+
+async function createDemo(page: Page) {
+  await page.goto("/subscriptions?demo=1");
+  await page.getByLabel("Total subscription price").fill("101.00");
+  await page.getByLabel("First billing date").fill("2026-11-01");
+  await page
+    .getByLabel("Members — one name per line")
+    .fill("Manager\nAlice\nBob");
+  await page.getByRole("button", { name: "Create plan", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "No bills yet." }),
+  ).toBeVisible();
+}
+
+async function openCycle(page: Page) {
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Open next cycle" }).click();
+  await expect(page.getByLabel("View cycle")).toBeVisible();
+}
+
+function memberRow(page: Page, name: string) {
+  return page.locator("tbody tr").filter({
+    has: page.getByText(name, { exact: true }),
+  });
+}
+
+async function downloadText(download: Download) {
+  const stream = await download.createReadStream();
+  if (!stream) throw new Error("The downloaded file is unavailable.");
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+test("demo splits every paise, records partial payments, and preserves old bills after changes", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await openCycle(page);
+  const firstCycle = await page.getByLabel("View cycle").inputValue();
+  await expect(memberRow(page, "Manager").locator("td").nth(1)).toHaveText(
+    "₹33.67",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(1)).toHaveText(
+    "₹33.67",
+  );
+  await expect(memberRow(page, "Bob").locator("td").nth(1)).toHaveText(
+    "₹33.66",
+  );
+
+  await memberRow(page, "Alice")
+    .getByRole("button", { name: "Record payment" })
+    .click();
+  await page.getByLabel("Amount received").fill("10.00");
+  await page
+    .getByLabel("Private reference / note")
+    .fill("Private bank reference");
+  await page.getByRole("button", { name: "Save payment", exact: true }).click();
+  await expect(memberRow(page, "Alice")).toContainText("Part paid");
+  await expect(memberRow(page, "Alice").locator("td").nth(2)).toHaveText(
+    "₹10.00",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(3)).toHaveText(
+    "₹23.67",
+  );
+
+  await memberRow(page, "Alice")
+    .getByRole("button", { name: "Record payment" })
+    .click();
+  await page.getByLabel("Amount received").fill("23.68");
+  await page.getByRole("button", { name: "Save payment", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Payment exceeds this member’s remaining balance.",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(2)).toHaveText(
+    "₹10.00",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await page
+    .getByRole("button", { name: "Plan & members", exact: true })
+    .click();
+  await expect(page.getByLabel("First billing date")).toBeDisabled();
+  await expect(page.getByLabel("Billing frequency")).toBeDisabled();
+  await page.getByLabel("Total subscription price").fill("120.00");
+  await page
+    .getByRole("button", { name: "Save settings", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Plan & members", exact: true })
+    .click();
+  await page
+    .locator(".plan-member-list li")
+    .filter({ hasText: "Bob" })
+    .getByRole("button", { name: "Pause", exact: true })
+    .click();
+  await expect(
+    page.locator(".plan-member-list li").filter({ hasText: "Bob" }),
+  ).toContainText("Inactive · history kept");
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await openCycle(page);
+  await expect(page.locator("tbody tr")).toHaveCount(2);
+  await expect(memberRow(page, "Manager").locator("td").nth(1)).toHaveText(
+    "₹60.00",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(1)).toHaveText(
+    "₹60.00",
+  );
+  await expect(page.getByLabel("View cycle").locator("option")).toHaveCount(2);
+
+  await page.getByLabel("View cycle").selectOption(firstCycle);
+  await expect(page.locator("tbody tr")).toHaveCount(3);
+  await expect(memberRow(page, "Bob").locator("td").nth(1)).toHaveText(
+    "₹33.66",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(1)).toHaveText(
+    "₹33.67",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(3)).toHaveText(
+    "₹23.67",
+  );
+  await page
+    .getByText("Payment history & corrections", { exact: true })
+    .click();
+  await expect(page.locator(".plan-history")).toContainText(
+    "Private bank reference",
+  );
+});
+
+test("opening another cycle discards an unsubmitted payment without changing either bill", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await openCycle(page);
+  const firstCycle = await page.getByLabel("View cycle").inputValue();
+  await memberRow(page, "Alice")
+    .getByRole("button", { name: "Record payment" })
+    .click();
+  await page.getByLabel("Amount received").fill("10.00");
+  await page.getByLabel("Private reference / note").fill("Never submitted");
+
+  await openCycle(page);
+  await expect(page.getByLabel("View cycle")).not.toHaveValue(firstCycle);
+  await expect(
+    page.getByRole("heading", { name: "Record payment for Alice" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Save payment", exact: true }),
+  ).toHaveCount(0);
+  for (const name of ["Manager", "Alice", "Bob"]) {
+    await expect(memberRow(page, name).locator("td").nth(2)).toHaveText(
+      "₹0.00",
+    );
+  }
+
+  await page.getByLabel("View cycle").selectOption(firstCycle);
+  for (const name of ["Manager", "Alice", "Bob"]) {
+    await expect(memberRow(page, name).locator("td").nth(2)).toHaveText(
+      "₹0.00",
+    );
+  }
+  await page
+    .getByText("Payment history & corrections", { exact: true })
+    .click();
+  await expect(page.locator(".plan-history")).toContainText(
+    "No payments recorded yet.",
+  );
+  await expect(page.locator(".plan-history")).not.toContainText(
+    "Never submitted",
+  );
+});
+
+test("demo is explicit, cannot create shared links, and clears on refresh", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await expect(page.getByText("Demo mode.", { exact: false })).toContainText(
+    "Refreshing clears this session.",
+  );
+  for (const button of await page
+    .getByRole("button", { name: "Create link", exact: true })
+    .all()) {
+    await expect(button).toBeDisabled();
+  }
+  await expect(
+    page.getByRole("button", { name: "Create link", exact: true }),
+  ).toHaveCount(3);
+  await openCycle(page);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Set up your plan" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Total subscription price")).toHaveValue("");
+  await expect(page.getByLabel("Members — one name per line")).toHaveValue("");
+  await expect(page.locator("tbody tr")).toHaveCount(0);
+});
+
+test("manager space requires login and anonymous APIs cannot read or change plans", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/subscriptions");
+  await expect(
+    page.getByRole("link", { name: "Sign in to manage" }),
+  ).toHaveAttribute("href", "/login?next=subscriptions");
+  await expect(
+    page.getByRole("button", { name: "Open next cycle" }),
+  ).toHaveCount(0);
+  for (const endpoint of ["/api/subscriptions", "/api/subscriptions/share"]) {
+    const read = await request.get(endpoint);
+    expect(read.status()).toBe(401);
+    expect(read.headers()["cache-control"]).toContain("no-store");
+    const write = await request.post(endpoint, { data: {} });
+    expect(write.status()).toBe(401);
+  }
+  const missingToken = await request.get("/api/subscriptions/view");
+  expect(missingToken.status()).toBe(404);
+  const queryToken = await request.get(
+    `/api/subscriptions/view?token=${token}`,
+  );
+  expect(queryToken.status()).toBe(404);
+
+  await page.goto("/");
+  await expect(page.locator('a[href^="/subscriptions"]')).toHaveCount(0);
+});
+
+test("personal view sends its fragment token only in the authorization header and exports the due date", async ({
+  page,
+}) => {
+  const requests: {
+    url: string;
+    authorization: string | undefined;
+    referer: string | undefined;
+  }[] = [];
+  await page.route("**/api/subscriptions/view", async (route) => {
+    const request = route.request();
+    requests.push({
+      url: request.url(),
+      authorization: request.headers().authorization,
+      referer: request.headers().referer,
+    });
+    await route.fulfill({ json: personalView });
+  });
+  await page.goto(`/subscriptions/view#${token}`);
+  await expect(
+    page.getByRole("heading", { name: "YouTube Premium", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("HELLO, ALICE", { exact: true })).toBeVisible();
+  await expect(page.locator(".plan-personal-summary")).toContainText("₹33.67");
+  await expect(page.locator(".plan-personal-summary")).toContainText("₹23.67");
+  await expect(page.getByRole("heading", { name: "How to pay" })).toBeVisible();
+  await expect(page.getByText("Manager", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Bob", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Private bank reference", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: /Record payment|Save settings|Create link|Revoke/,
+    }),
+  ).toHaveCount(0);
+  await page.getByText("Payments received", { exact: true }).click();
+  await expect(page.locator(".plan-member-cycle")).toContainText(
+    "2026-11-02 · ₹10.00",
+  );
+
+  const downloading = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download payment calendar date" })
+    .click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toBe("subscription-payment.ics");
+  const calendar = await downloadText(download);
+  expect(calendar).toContain("BEGIN:VCALENDAR\r\n");
+  expect(calendar).toContain("DTSTART;VALUE=DATE:20261105");
+  expect(calendar).toContain("DTEND;VALUE=DATE:20261106");
+  expect(calendar).toContain("SUMMARY:YouTube Premium payment due");
+  expect(calendar).toContain("Amount remaining: ₹23.67");
+  expect(calendar).not.toContain(token);
+
+  await page
+    .getByRole("button", { name: "Refresh status", exact: true })
+    .click();
+  await expect.poll(() => requests.length).toBeGreaterThanOrEqual(2);
+  for (const request of requests) {
+    expect(new URL(request.url).pathname).toBe("/api/subscriptions/view");
+    expect(new URL(request.url).search).toBe("");
+    expect(request.url).not.toContain(token);
+    expect(request.authorization).toBe(`Bearer ${token}`);
+    expect(request.referer).toBeUndefined();
+  }
+});
+
+test("revoked personal links clear previously visible billing details", async ({
+  page,
+}) => {
+  let revoked = false;
+  await page.route("**/api/subscriptions/view", (route) =>
+    route.fulfill(
+      revoked
+        ? {
+            status: 404,
+            json: { error: "This link is invalid or has been revoked." },
+          }
+        : { json: personalView },
+    ),
+  );
+  await page.goto(`/subscriptions/view#${token}`);
+  await expect(
+    page.getByRole("heading", { name: "YouTube Premium", exact: true }),
+  ).toBeVisible();
+  revoked = true;
+  await page
+    .getByRole("button", { name: "Refresh status", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toHaveText(
+    "This link is invalid or has been revoked.",
+  );
+  await expect(page.getByText("₹23.67", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "YouTube Premium", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Try again", exact: true }),
+  ).toBeVisible();
+});
+
+test("incomplete personal links explain recovery without sending a token request", async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.route("**/api/subscriptions/view", async (route) => {
+    requests++;
+    await route.abort();
+  });
+  await page.goto("/subscriptions/view#incomplete");
+  await expect(page.getByRole("status")).toHaveText(
+    "This personal link is missing or incomplete. Ask your plan manager for a new link.",
+  );
+  expect(requests).toBe(0);
+  await expect(
+    page.getByRole("button", { name: "Try again", exact: true }),
+  ).toBeVisible();
+});
