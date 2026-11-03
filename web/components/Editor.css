@@ -1,0 +1,120 @@
+/* Private resume studio only: keep the document visible during editing. */
+.resume-studio .studio-workspace {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 20px;
+  min-width: 0;
+}
+.resume-studio .studio-workspace > * {
+  min-width: 0;
+}
+.resume-studio .studio-fields > .panel {
+  margin-top: 28px;
+}
+.resume-studio .studio-preview-column {
+  position: sticky;
+  top: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: calc(100dvh - 120px);
+  min-height: 360px;
+  overflow: hidden;
+  padding: 18px;
+  background: #edf1ed;
+  border: 1px solid #d4ddd5;
+  border-radius: 8px;
+}
+.resume-studio .studio-preview-heading h2 {
+  font-size: 16px;
+}
+.resume-studio .studio-preview-heading p {
+  margin: 6px 0 0;
+  color: #56645c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.resume-studio .studio-preview-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 2px;
+  border-radius: 3px;
+}
+.resume-studio .studio-preview-scroll:focus-visible {
+  outline: 2px solid #2b6551;
+  outline-offset: 2px;
+}
+.resume-studio .studio-preview-scroll .resume-preview {
+  width: 100%;
+  padding: 24px 20px;
+}
+.resume-studio .studio-view-switch {
+  display: none;
+}
+@media (min-width: 1100px) and (max-width: 1399px) {
+  .resume-studio .studio-workspace {
+    grid-template-columns: 185px minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 14px;
+  }
+  .resume-studio .studio-versions,
+  .resume-studio .studio-fields {
+    padding: 18px;
+  }
+  .resume-studio .studio-preview-column {
+    padding: 14px;
+  }
+}
+@media (max-width: 1099px) {
+  .resume-studio .studio-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resume-studio .studio-view-switch {
+    display: flex;
+    gap: 6px;
+    flex-basis: 100%;
+    border-top: 1px solid #d4ddd5;
+    padding-top: 10px;
+  }
+  .resume-studio .studio-view-switch button {
+    flex: 1;
+  }
+  .resume-studio .studio-view-switch button[aria-pressed="true"] {
+    background: #213e30;
+    border-color: #213e30;
+    color: white;
+  }
+  .resume-studio[data-studio-view="edit"] .studio-preview-column {
+    display: none;
+  }
+  .resume-studio[data-studio-view="preview"] .studio-fields,
+  .resume-studio[data-studio-view="preview"] .studio-versions {
+    display: none;
+  }
+  .resume-studio .studio-preview-column {
+    position: static;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .resume-studio .studio-preview-scroll {
+    overflow: visible;
+    padding: 0;
+  }
+  .resume-studio .studio-preview-scroll .resume-preview {
+    padding: 24px 18px;
+  }
+  .resume-studio .studio-preview-heading p {
+    display: none;
+  }
+}
+@media print {
+  .resume-studio .studio-preview-column,
+  .resume-studio .studio-preview-scroll {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+}
