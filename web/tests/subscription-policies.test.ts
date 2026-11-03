@@ -18,7 +18,7 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
   const document: SubscriptionDocument = {
     version: 1,
     plan: { name: "Premium group", amountMinor: 29900, currency: "INR", interval: "monthly", anchorDate: "2026-11-01", paymentNote: "Pay the manager directly." },
-    members: [{ id: alice, name: "Alice", active: true }, { id: bob, name: "Bob private name", active: true }],
+    members: [{ id: alice, name: "Alice", active: true, joinedDate: "2026-10-05" }, { id: bob, name: "Bob private name", active: true }],
     cycles: [],
   };
   const cycle = buildCycle(document);
@@ -67,9 +67,13 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
     assert.equal((await asUser("authenticated", otherOwner, "delete from public.subscription_shares returning member_id")).rows.length, 0);
     const expected: SharedSubscription = {
       plan: { name: "Premium group", paymentNote: "Pay the manager directly.", interval: "monthly" },
-      member: { id: alice, name: "Alice" },
+      member: { id: alice, name: "Alice", joinedDate: "2026-10-05" },
       cycles: [{ id: cycle.id, startDate: "2026-11-01", dueDate: "2026-11-01", renewalDate: "2026-12-01", currency: "INR", amountMinor: 14950, payments: [{ amountMinor: 5000, date: "2026-11-02" }] }],
     };
+    await asUser("authenticated", owner, "update public.subscription_shares set owner_token=$1 where member_id=$2", ["a".repeat(43), alice]);
+    assert.equal(((await asUser("authenticated", owner, "select owner_token from public.subscription_shares where member_id=$1", [alice])).rows[0] as { owner_token: string }).owner_token, "a".repeat(43));
+    assert.equal((await asUser("authenticated", otherOwner, "select owner_token from public.subscription_shares where member_id=$1", [alice])).rows.length, 0);
+    assert.equal(JSON.stringify(await view(tokenHash)).includes("owner_token"), false);
     assert.deepEqual(await view(tokenHash), expected);
     assert.deepEqual(await view(tokenHash, "authenticated", stranger), expected);
     assert.equal(await view(hash("unknown-token")), null);

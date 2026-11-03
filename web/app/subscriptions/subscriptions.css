@@ -757,3 +757,20 @@
     gap: 16px;
   }
 }
+.plan-member-meta { display:flex; flex-wrap:wrap; gap:8px 20px; color:var(--plan-muted); margin:-8px 0 22px; font-size:12px; }
+.plan-view-tabs { display:flex; gap:5px; padding:5px; border:1px solid var(--plan-line); background:#edf1e8; border-radius:12px; margin-bottom:26px; }
+.plan-view-tabs button { flex:1; border:0; background:transparent; border-radius:8px; }
+.plan-view-tabs button[aria-pressed=true] { background:#fffefa; color:#183d35; box-shadow:0 2px 5px #183d3510; }
+.plan-chart-bars { display:flex; gap:14px; overflow-x:auto; padding:14px 0 8px; scroll-snap-type:x proximity; }
+.plan-chart-period { min-width:112px; flex:1; scroll-snap-align:start; }
+.plan-chart-period strong { display:block; font-size:11px; margin-top:12px; }
+.plan-chart-period small { display:block; font-size:10px; color:var(--plan-muted); white-space:nowrap; }
+.plan-chart-track { height:100px; display:flex; align-items:flex-end; border-radius:8px; background:repeating-linear-gradient(to top,#edf1e8 0,#edf1e8 24px,#dfe7d9 25px); overflow:hidden; }
+.plan-chart-track>span { width:100%; background:#7c9f61; border-radius:8px 8px 0 0; }
+.plan-chart-period meter { width:100%; height:5px; accent-color:#476b43; }
+.plan-app button.plan-member-copy { display:block; text-align:left; border:0; background:transparent; padding:8px 0; font-size:15px; color:#284f3f; }
+.plan-app button.plan-member-copy small { display:block; font-size:11px; color:var(--plan-muted); font-weight:400; }
+.plan-past-period { border-top:1px solid var(--plan-line); margin:20px 0; padding-top:18px; }
+.plan-past-period summary { cursor:pointer; font-weight:600; }
+.plan-app [hidden] { display:none !important; }
+@media(prefers-reduced-motion:no-preference) { .plan-chart-track>span { animation:bar-fill .5s ease-out both; transform-origin:bottom; } .plan-app button,.plan-button { transition:background .18s,transform .18s,box-shadow .18s; } .plan-app button:active,.plan-button:active { transform:scale(.98); } @keyframes bar-fill { from { transform:scaleY(0); } to { transform:scaleY(1); } } }

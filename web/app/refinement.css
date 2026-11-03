@@ -254,3 +254,28 @@
     font-size: 16px;
   }
 }
+/* Compact project bento and small, responsive interactions. */
+@media screen and (min-width:760px) {
+.selected-projects { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.project-teaser:first-child { grid-column:1/-1; }
+.project-teaser:not(:first-child) .project-teaser-body { grid-template-columns:1fr; gap:18px; }
+.project-teaser:not(:first-child) .project-client { max-width:45%; text-align:right; }
+}
+@media screen {
+.profile-heading h1 { font-weight:600; letter-spacing:-.055em; }
+.profile-intro { position:relative; }
+.profile-intro::after { content:""; display:block; width:54px; height:4px; border-radius:4px; background:#bbd884; margin-top:28px; }
+.project-teaser:focus-within { border-color:#547748; box-shadow:0 0 0 3px #dce9cf; }
+.site-header nav a { position:relative; }
+.site-header nav a::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:#476b43; transform:scaleX(0); transform-origin:left; }
+.profile-actions .button, .contact-email, .brand { transition:transform .2s,box-shadow .2s; }
+.profile-actions .button:hover { transform:translateY(-2px); box-shadow:0 6px 14px #203d2914; }
+.profile-actions .button:active { transform:translateY(1px); box-shadow:none; }
+.brand:hover { transform:rotate(-4deg); }
+.contact-email:hover svg,.project-teaser h3 a:hover svg,.quiet-link:hover svg { transform:translate(3px,-3px); }
+}
+@media(prefers-reduced-motion:no-preference) {
+.site-header nav a::after,.contact-email svg,.project-teaser h3 svg,.quiet-link svg { transition:transform .22s ease; }
+.site-header nav a:hover::after,.site-header nav a:focus-visible::after { transform:scaleX(1); }
+}
+@media(prefers-reduced-motion:reduce) { .project-teaser:hover,.profile-actions .button:hover,.profile-actions .button:active,.brand:hover,.contact-email:hover svg,.project-teaser h3 a:hover svg,.quiet-link:hover svg { transform:none; } }

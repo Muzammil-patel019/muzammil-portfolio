@@ -119,7 +119,14 @@ export const documentSchema = z
       .strict(),
     members: z
       .array(
-        z.object({ id: uuid, name: nameSchema, active: z.boolean() }).strict(),
+        z
+          .object({
+            id: uuid,
+            name: nameSchema,
+            active: z.boolean(),
+            joinedDate: dateSchema.optional(),
+          })
+          .strict(),
       )
       .max(50),
     cycles: z.array(cycleSchema).max(240),
@@ -172,7 +179,7 @@ export type SubscriptionAllocation = SubscriptionCycle["allocations"][number];
 export type SubscriptionPayment = SubscriptionAllocation["payments"][number];
 export type SharedSubscription = {
   plan: Pick<SubscriptionPlan, "name" | "paymentNote" | "interval">;
-  member: Pick<SubscriptionMember, "id" | "name">;
+  member: Pick<SubscriptionMember, "id" | "name" | "joinedDate">;
   cycles: Array<
     Pick<
       SubscriptionCycle,
@@ -287,10 +294,24 @@ export function buildCycle(document: SubscriptionDocument): SubscriptionCycle {
       (highest, cycle) => Math.max(highest, cycle.index),
       -1,
     ) + 1;
+  const latestStart = validated.cycles.reduce(
+    (latest, cycle) => (cycle.startDate > latest ? cycle.startDate : latest),
+    "",
+  );
+  let scheduleIndex = 0;
+  while (
+    scheduleIndex < 1200 &&
+    cycleDates(
+      validated.plan.anchorDate,
+      validated.plan.interval,
+      scheduleIndex,
+    ).startDate <= latestStart
+  )
+    scheduleIndex++;
   const { startDate, renewalDate } = cycleDates(
     validated.plan.anchorDate,
     validated.plan.interval,
-    index,
+    scheduleIndex,
   );
   const shares = splitAmount(
     validated.plan.amountMinor,

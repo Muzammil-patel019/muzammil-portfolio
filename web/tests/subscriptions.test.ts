@@ -120,3 +120,15 @@ test("money formatting keeps minor units and currency", () => {
   assert.equal(money(1, "GBP"), "£0.01");
   assert.throws(() => money(1.5, "INR"));
 });
+
+test("backfilled periods never advance the future billing schedule", () => {
+  const doc = document();
+  doc.plan.anchorDate = "2026-11-01";
+  const past = buildCycle(doc);
+  Object.assign(past, { startDate: "2026-10-01", dueDate: "2026-10-01", renewalDate: "2026-11-01" });
+  doc.cycles.push(past);
+  const next = buildCycle(doc);
+  assert.equal(next.index, 1);
+  assert.equal(next.startDate, "2026-11-01");
+  assert.equal(next.renewalDate, "2026-12-01");
+});
