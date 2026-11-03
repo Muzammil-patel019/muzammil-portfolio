@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { browserClient } from "@/lib/supabase";
 import {
   buildCycle,
+  cycleDates,
   daysUntil,
   documentSchema,
   money,
@@ -69,6 +70,40 @@ export function SubscriptionManager() {
     if (!response.ok)
       throw new Error(result.error || "The request failed. Try again.");
     return result;
+  }
+  async function shareMember(memberId: string, replace = false) {
+    await action(async () => {
+      if (
+        replace &&
+        !confirm("Replace this link? The previous link will stop working.")
+      )
+        return;
+      let result = await api("/api/subscriptions/share", "POST", {
+        memberId,
+        replace,
+      });
+      if (result.needsReplacement) {
+        if (
+          !confirm(
+            "This older link cannot be recovered. Replace it once to enable copying it again later? The old link will stop working.",
+          )
+        )
+          return;
+        result = await api("/api/subscriptions/share", "POST", {
+          memberId,
+          replace: true,
+        });
+      }
+      const url = `${location.origin}/subscriptions/view#${result.token}`;
+      setLink(url);
+      setShares((current) => [...new Set([...current, memberId])]);
+      try {
+        await navigator.clipboard.writeText(url);
+        setMessage("Personal link copied. Send it privately.");
+      } catch {
+        setMessage("Personal link ready. Copy it from the box.");
+      }
+    });
   }
   function fillSettings(value: SubscriptionDocument) {
     setSettings({
@@ -169,7 +204,10 @@ export function SubscriptionManager() {
     };
   }
   const cycle =
-    doc?.cycles.find((c) => c.id === selected) || doc?.cycles.at(-1);
+    doc?.cycles.find((c) => c.id === selected) ||
+    [...(doc?.cycles || [])].sort((a, b) =>
+      b.startDate.localeCompare(a.startDate),
+    )[0];
   const collected =
     cycle?.allocations.reduce((sum, a) => sum + paidTotal(a), 0) || 0;
   const outstanding = (cycle?.totalMinor || 0) - collected;
@@ -511,6 +549,27 @@ export function SubscriptionManager() {
                         </small>
                       </span>
                       <div className="plan-actions">
+                        <label>
+                          Joined YouTube
+                          <input
+                            type="date"
+                            aria-label={`Joined date for ${member.name}`}
+                            value={member.joinedDate || ""}
+                            disabled={busy}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              void action(async () => {
+                                const next = clone(doc);
+                                const target = next.members.find(
+                                  (m) => m.id === member.id,
+                                )!;
+                                if (value) target.joinedDate = value;
+                                else delete target.joinedDate;
+                                await persist(next);
+                              });
+                            }}
+                          />
+                        </label>
                         <button
                           disabled={busy}
                           onClick={() => {
@@ -654,6 +713,71 @@ export function SubscriptionManager() {
                 Open next cycle
               </button>
             </div>
+            <details className="plan-past-period">
+              <summary>Add a past billing period</summary>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const values = new FormData(form);
+                  void action(async () => {
+                    const start = String(values.get("pastStart"));
+                    if (start > todayIST())
+                      throw new Error("Choose a past or current billing date.");
+                    if (doc.cycles.some((c) => c.startDate === start))
+                      throw new Error(
+                        "A billing period already starts on that date.",
+                      );
+                    const next = clone(doc);
+                    const temp = clone(doc);
+                    temp.plan.amountMinor = parseMoney(
+                      String(values.get("pastAmount")),
+                    );
+                    temp.members = temp.members.map((m) => ({
+                      ...m,
+                      active:
+                        m.active &&
+                        (!m.joinedDate ||
+                          m.joinedDate <
+                            cycleDates(start, doc.plan.interval, 1).startDate),
+                    }));
+                    const created = buildCycle(temp);
+                    const dates = cycleDates(start, doc.plan.interval, 0);
+                    Object.assign(created, dates, { dueDate: start });
+                    next.cycles.push(created);
+                    await persist(next);
+                    setSelected(created.id);
+                    setPayment(null);
+                    form.reset();
+                  });
+                }}
+              >
+                <p>
+                  Enter the actual period and total price. Shares use current
+                  active members and their join dates. Record received payments
+                  against this period afterward.
+                </p>
+                <label>
+                  Past period starts
+                  <input
+                    type="date"
+                    name="pastStart"
+                    max={todayIST()}
+                    required
+                  />
+                </label>
+                <label>
+                  Total price for this period
+                  <input
+                    name="pastAmount"
+                    inputMode="decimal"
+                    defaultValue={(doc.plan.amountMinor / 100).toFixed(2)}
+                    required
+                  />
+                </label>
+                <button disabled={busy}>Add past period</button>
+              </form>
+            </details>
             {doc.cycles.length > 0 && (
               <>
                 <label htmlFor="cycle-select">View cycle</label>
@@ -930,50 +1054,31 @@ export function SubscriptionManager() {
           <section className="plan-box">
             <h2>Personal member links</h2>
             <p>
-              Each link shows only that member’s bills, payments and countdowns.
-              Anyone holding the link can view it. Creating a replacement
-              disables their previous link.
+              Click a name to copy their personal link. Saved links can be
+              copied again anytime.
             </p>
             <ul className="plan-member-list">
               {doc.members.map((member) => (
                 <li key={member.id}>
-                  <span>
+                  <button
+                    className="plan-member-copy"
+                    disabled={busy || demo}
+                    onClick={() => void shareMember(member.id)}
+                    aria-label={`Copy link for ${member.name}`}
+                  >
                     {member.name}
                     <small>
                       {shares.includes(member.id)
-                        ? "Link active"
-                        : "No active link"}
+                        ? "Copy personal link ↗"
+                        : "Create & copy link ↗"}
                     </small>
-                  </span>
+                  </button>
                   <div className="plan-actions">
                     <button
                       disabled={busy || demo}
-                      onClick={() =>
-                        void action(async () => {
-                          if (
-                            shares.includes(member.id) &&
-                            !confirm(
-                              "Replace this member’s current link? Their old link will stop working.",
-                            )
-                          )
-                            return;
-                          const result = await api(
-                            "/api/subscriptions/share",
-                            "POST",
-                            { memberId: member.id },
-                          );
-                          const url = `${location.origin}/subscriptions/view#${result.token}`;
-                          setLink(url);
-                          setShares([...new Set([...shares, member.id])]);
-                          setMessage(
-                            "Personal link ready. Copy and send it privately.",
-                          );
-                        })
-                      }
+                      onClick={() => void shareMember(member.id, true)}
                     >
-                      {shares.includes(member.id)
-                        ? "Replace link"
-                        : "Create link"}
+                      Replace link
                     </button>
                     {shares.includes(member.id) && (
                       <button

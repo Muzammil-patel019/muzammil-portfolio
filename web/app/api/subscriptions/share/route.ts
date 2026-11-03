@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       .object({
         memberId: z.uuid().transform((value) => value.toLowerCase()),
         revoke: z.boolean().optional(),
+        replace: z.boolean().optional(),
       })
       .strict()
       .safeParse(await readJSON(request));
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
         { error: "Choose a valid member." },
         { status: 400, headers },
       );
-    const { memberId, revoke } = parsed.data;
+    const { memberId, revoke, replace } = parsed.data;
     if (revoke) {
       const { error } = await db
         .from("subscription_shares")
@@ -84,6 +85,22 @@ export async function POST(request: NextRequest) {
         { error: "Save this member before creating a link." },
         { status: 400, headers },
       );
+    if (!replace) {
+      const { data: existing, error: lookupError } = await db
+        .from("subscription_shares")
+        .select("owner_token")
+        .eq("owner_id", user.id)
+        .eq("member_id", memberId)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing)
+        return NextResponse.json(
+          existing.owner_token
+            ? { token: existing.owner_token }
+            : { needsReplacement: true },
+          { headers },
+        );
+    }
     const token = randomBytes(32).toString("base64url");
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const { error: shareError } = await db.from("subscription_shares").upsert(
@@ -91,12 +108,25 @@ export async function POST(request: NextRequest) {
         owner_id: user.id,
         member_id: memberId,
         token_hash: tokenHash,
+        owner_token: token,
         created_at: new Date().toISOString(),
       },
-      { onConflict: "owner_id,member_id" },
+      { onConflict: "owner_id,member_id", ignoreDuplicates: !replace },
     );
     if (shareError) throw shareError;
-    return NextResponse.json({ token }, { headers });
+    const { data: saved, error: savedError } = await db
+      .from("subscription_shares")
+      .select("owner_token")
+      .eq("owner_id", user.id)
+      .eq("member_id", memberId)
+      .single();
+    if (savedError) throw savedError;
+    return NextResponse.json(
+      saved.owner_token
+        ? { token: saved.owner_token }
+        : { needsReplacement: true },
+      { headers },
+    );
   } catch (error) {
     if (
       error instanceof SyntaxError ||

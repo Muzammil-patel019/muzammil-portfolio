@@ -1,5 +1,6 @@
 -- Run after schema.sql. This feature uses the same owner account as the resume builder.
--- Member links are capabilities: only their SHA-256 hashes are stored here.
+-- Member links are capabilities. Original tokens are owner-only for repeat sharing;
+-- the anonymous RPC uses the hash and never returns tokens.
 create table if not exists public.subscription_plans (
   owner_id uuid primary key references auth.users(id) on delete cascade,
   document jsonb not null check (jsonb_typeof(document) = 'object'),
@@ -24,6 +25,7 @@ create table if not exists public.subscription_shares (
   created_at timestamptz not null default now(),
   primary key (owner_id, member_id)
 );
+alter table public.subscription_shares add column if not exists owner_token text check (owner_token is null or owner_token ~ '^[A-Za-z0-9_-]{43}$');
 alter table public.subscription_shares enable row level security;
 drop policy if exists "subscription share owner" on public.subscription_shares;
 create policy "subscription share owner" on public.subscription_shares for all to authenticated
@@ -41,7 +43,7 @@ language sql stable security definer set search_path = '' as $$
       'paymentNote', p.document->'plan'->>'paymentNote',
       'interval', p.document->'plan'->>'interval'
     ),
-    'member', jsonb_build_object('id', m.value->>'id', 'name', m.value->>'name'),
+    'member', jsonb_strip_nulls(jsonb_build_object('id', m.value->>'id', 'name', m.value->>'name', 'joinedDate', m.value->>'joinedDate')),
     'cycles', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', c.value->>'id',

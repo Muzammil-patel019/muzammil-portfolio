@@ -13,7 +13,7 @@ type MemberCycle = {
 };
 type View = {
   plan: { name: string; paymentNote: string; interval: string };
-  member: { id: string; name: string };
+  member: { id: string; name: string; joinedDate?: string };
   cycles: MemberCycle[];
 };
 const paid = (cycle: MemberCycle) =>
@@ -84,10 +84,6 @@ function PaymentLink({ cycle, name }: { cycle: MemberCycle; name: string }) {
         Pay {money(cycle.amountMinor - paid(cycle), cycle.currency)} with UPI
       </a>
       <p>
-        Choose PhonePe if your phone asks which app to open. Check the recipient
-        name in the app before approving.
-      </p>
-      <p>
         <strong>UPI ID:</strong> {payment.upiId}
         <br />
         <strong>Payment note:</strong> {payment.note}
@@ -105,11 +101,6 @@ function PaymentLink({ cycle, name }: { cycle: MemberCycle; name: string }) {
         Copy UPI ID
       </button>
       <span role="status">{copied}</span>
-      <p>
-        On a computer or if the app doesn’t open, pay this UPI ID in PhonePe
-        using the amount and note above. Your manager will confirm receipt and
-        update your balance.
-      </p>
     </div>
   );
 }
@@ -118,6 +109,9 @@ export function SubscriptionViewer() {
     [message, setMessage] = useState("Opening your personal plan…"),
     [busy, setBusy] = useState(false),
     [updated, setUpdated] = useState("");
+  const [activeTab, setActiveTab] = useState<"overview" | "history" | "help">(
+    "overview",
+  );
   async function refresh() {
     const token = location.hash.slice(1);
     if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) {
@@ -208,64 +202,98 @@ export function SubscriptionViewer() {
               {busy ? "Refreshing…" : "Refresh status"}
             </button>
           </div>
-          {latest ? (
-            <section className="plan-personal-summary">
-              <div>
-                <span className="plan-label">
-                  {displayDate(latest.startDate, true).toUpperCase()} · YOUR
-                  SHARE
-                </span>
-                <strong>{money(latest.amountMinor, latest.currency)}</strong>
+          <div className="plan-member-meta">
+            <span>
+              {view.plan.interval === "yearly" ? "Yearly" : "Monthly"} plan
+            </span>
+            <span>
+              {view.member.joinedDate
+                ? `Member since ${displayDate(view.member.joinedDate)}`
+                : cycles.length
+                  ? `Records from ${displayDate(cycles.at(-1)!.startDate, true)}`
+                  : "No billing records yet"}
+            </span>
+          </div>
+          <nav className="plan-view-tabs" aria-label="Your subscription">
+            <button
+              aria-pressed={activeTab === "overview"}
+              onClick={() => setActiveTab("overview")}
+            >
+              Overview
+            </button>
+            <button
+              aria-pressed={activeTab === "history"}
+              onClick={() => setActiveTab("history")}
+            >
+              History
+            </button>
+            <button
+              aria-pressed={activeTab === "help"}
+              onClick={() => setActiveTab("help")}
+            >
+              Help
+            </button>
+          </nav>
+          <div hidden={activeTab !== "overview"}>
+            {latest ? (
+              <section className="plan-personal-summary">
+                <div>
+                  <span className="plan-label">
+                    {displayDate(latest.startDate, true).toUpperCase()} · YOUR
+                    SHARE
+                  </span>
+                  <strong>{money(latest.amountMinor, latest.currency)}</strong>
+                  <p>
+                    {displayDate(latest.startDate)} to{" "}
+                    {displayDate(latest.renewalDate)}
+                  </p>
+                </div>
+                <div>
+                  <span className="plan-label">REMAINING TO PAY</span>
+                  <strong>
+                    {money(latest.amountMinor - paid(latest), latest.currency)}
+                  </strong>
+                  <span
+                    className={`plan-badge ${paid(latest) === latest.amountMinor ? "settled" : ""}`}
+                  >
+                    {paid(latest) === latest.amountMinor
+                      ? "You’re settled"
+                      : countdown(latest.dueDate)}
+                  </span>
+                </div>
+              </section>
+            ) : (
+              <div className="plan-box plan-empty">
+                <h2>No bill yet.</h2>
                 <p>
-                  {displayDate(latest.startDate)} to{" "}
-                  {displayDate(latest.renewalDate)}
+                  Your manager will open the first billing cycle when it’s time.
                 </p>
               </div>
-              <div>
-                <span className="plan-label">REMAINING TO PAY</span>
-                <strong>
-                  {money(latest.amountMinor - paid(latest), latest.currency)}
-                </strong>
-                <span
-                  className={`plan-badge ${paid(latest) === latest.amountMinor ? "settled" : ""}`}
-                >
-                  {paid(latest) === latest.amountMinor
-                    ? "You’re settled"
-                    : countdown(latest.dueDate)}
-                </span>
+            )}
+            {latest && (
+              <div className="plan-date-strip">
+                <div>
+                  <span>Payment due</span>
+                  <strong>{latest.dueDate}</strong>
+                </div>
+                <div>
+                  <span>Subscription renews</span>
+                  <strong>{latest.renewalDate}</strong>
+                </div>
+                <div>
+                  <span>Days until this renewal</span>
+                  <strong>{Math.max(0, daysUntil(latest.renewalDate))}</strong>
+                </div>
               </div>
-            </section>
-          ) : (
-            <div className="plan-box plan-empty">
-              <h2>No bill yet.</h2>
-              <p>
-                Your manager will open the first billing cycle when it’s time.
-              </p>
-            </div>
-          )}
-          {latest && (
-            <div className="plan-date-strip">
-              <div>
-                <span>Payment due</span>
-                <strong>{latest.dueDate}</strong>
-              </div>
-              <div>
-                <span>Subscription renews</span>
-                <strong>{latest.renewalDate}</strong>
-              </div>
-              <div>
-                <span>Days until this renewal</span>
-                <strong>{Math.max(0, daysUntil(latest.renewalDate))}</strong>
-              </div>
-            </div>
-          )}
-          {latest && subscriptionUpiPayment(view.plan.name, latest) && (
-            <section className="plan-box">
-              <h2>Pay your share</h2>
-              <PaymentLink cycle={latest} name={view.plan.name} />
-            </section>
-          )}
-          {view.plan.paymentNote && (
+            )}
+            {latest && subscriptionUpiPayment(view.plan.name, latest) && (
+              <section className="plan-box">
+                <h2>Pay your share</h2>
+                <PaymentLink cycle={latest} name={view.plan.name} />
+              </section>
+            )}
+          </div>
+          {activeTab === "help" && view.plan.paymentNote && (
             <section className="plan-box">
               <h2>How to pay</h2>
               <p className="plan-note">{view.plan.paymentNote}</p>
@@ -275,99 +303,148 @@ export function SubscriptionViewer() {
               </small>
             </section>
           )}
-          <section className="plan-box plan-receipts">
-            <p className="plan-label">YOUR RECORD</p>
-            <h2>Payment history</h2>
-            <p>
-              Receipts confirmed by your manager, with the billing period each
-              payment covers.
-            </p>
-            {cycles.every((c) => c.payments.length === 0) ? (
-              <p>
-                No payments confirmed yet. After you pay, your manager will
-                verify receipt and record it here.
-              </p>
-            ) : (
-              <ol className="plan-receipt-list">
-                {cycles.flatMap((cycle) =>
-                  cycle.payments.map((payment, i) => (
-                    <li key={`${cycle.id}-${i}`}>
-                      <div>
-                        <strong>
-                          {money(payment.amountMinor, cycle.currency)}
-                        </strong>
-                        <span className="plan-badge settled">Received</span>
-                      </div>
-                      <h3>For {displayDate(cycle.startDate, true)}</h3>
-                      <p>
-                        Billing period: {displayDate(cycle.startDate)} –{" "}
-                        {displayDate(cycle.renewalDate)}
-                        <br />
-                        Payment received: {displayDate(payment.date)}
-                      </p>
-                    </li>
-                  )),
-                )}
-              </ol>
-            )}
-          </section>
-          <section className="plan-box">
-            <h2>Your billing history</h2>
-            <p>
-              Earlier unpaid balances stay visible here. Each bill is tracked
-              separately.
-            </p>
-            {cycles.map((cycle) => (
-              <article className="plan-member-cycle" key={cycle.id}>
-                <div className="plan-section-head">
-                  <div>
-                    <h3>{displayDate(cycle.startDate, true)}</h3>
-                    <p>
-                      {displayDate(cycle.startDate)} –{" "}
-                      {displayDate(cycle.renewalDate)}
-                    </p>
-                    <p>
-                      {paid(cycle) === cycle.amountMinor
-                        ? "Settled"
-                        : countdown(cycle.dueDate)}{" "}
-                      · Pay by {cycle.dueDate}
-                    </p>
+          {cycles.length > 0 && activeTab !== "help" && (
+            <section className="plan-box plan-chart">
+              <div className="plan-section-head">
+                <div>
+                  <p className="plan-label">YOUR JOURNEY</p>
+                  <h2>Payment timeline</h2>
+                </div>
+                <span>
+                  {cycles.filter((c) => paid(c) === c.amountMinor).length} /{" "}
+                  {cycles.length} periods paid
+                </span>
+              </div>
+              <div className="plan-chart-bars">
+                {[...cycles].reverse().map((c) => (
+                  <div className="plan-chart-period" key={c.id}>
+                    <span className="plan-chart-track">
+                      <span
+                        style={{
+                          height: `${c.amountMinor ? Math.min(100, (paid(c) / c.amountMinor) * 100) : 100}%`,
+                        }}
+                      />
+                    </span>
+                    <strong>{displayDate(c.startDate, true)}</strong>
+                    <meter
+                      min={0}
+                      max={Math.max(1, c.amountMinor)}
+                      value={paid(c)}
+                      aria-label={`Paid for ${displayDate(c.startDate, true)}`}
+                    />
+                    <small>
+                      {money(paid(c), c.currency)} /{" "}
+                      {money(c.amountMinor, c.currency)}
+                    </small>
                   </div>
-                  <strong>
-                    {money(cycle.amountMinor - paid(cycle), cycle.currency)} due
-                  </strong>
-                </div>
-                <div className="plan-mini-totals">
-                  <span>
-                    Your share <b>{money(cycle.amountMinor, cycle.currency)}</b>
-                  </span>
-                  <span>
-                    Received <b>{money(paid(cycle), cycle.currency)}</b>
-                  </span>
-                </div>
-                {cycle.payments.length > 0 && (
-                  <details>
-                    <summary>Payments received</summary>
-                    <ul>
-                      {cycle.payments.map((p, i) => (
-                        <li key={i}>
-                          {p.date} · {money(p.amountMinor, cycle.currency)}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-                {cycle.id !== latest?.id && <PaymentLink cycle={cycle} name={view.plan.name} />}
-                {paid(cycle) < cycle.amountMinor && (
-                  <button onClick={() => calendar(cycle, view.plan.name)}>
-                    Download payment calendar date
-                  </button>
-                )}
-              </article>
-            ))}
-          </section>
-          <section className="plan-box plan-help">
-            <h2>A few useful things</h2>
+                ))}
+              </div>
+            </section>
+          )}
+          <div hidden={activeTab !== "history"}>
+            <section className="plan-box plan-receipts">
+              <p className="plan-label">YOUR RECORD</p>
+              <h2>Payment history</h2>
+              <p>
+                Receipts confirmed by your manager, with the billing period each
+                payment covers.
+              </p>
+              {cycles.every((c) => c.payments.length === 0) ? (
+                <p>
+                  No payments confirmed yet. After you pay, your manager will
+                  verify receipt and record it here.
+                </p>
+              ) : (
+                <ol className="plan-receipt-list">
+                  {cycles.flatMap((cycle) =>
+                    cycle.payments.map((payment, i) => (
+                      <li key={`${cycle.id}-${i}`}>
+                        <div>
+                          <strong>
+                            {money(payment.amountMinor, cycle.currency)}
+                          </strong>
+                          <span className="plan-badge settled">Received</span>
+                        </div>
+                        <h3>For {displayDate(cycle.startDate, true)}</h3>
+                        <p>
+                          Billing period: {displayDate(cycle.startDate)} –{" "}
+                          {displayDate(cycle.renewalDate)}
+                          <br />
+                          Payment received: {displayDate(payment.date)}
+                        </p>
+                      </li>
+                    )),
+                  )}
+                </ol>
+              )}
+            </section>
+            <section className="plan-box">
+              <h2>Your billing history</h2>
+              <p>
+                Earlier unpaid balances stay visible here. Each bill is tracked
+                separately.
+              </p>
+              {cycles.map((cycle) => (
+                <article className="plan-member-cycle" key={cycle.id}>
+                  <div className="plan-section-head">
+                    <div>
+                      <h3>{displayDate(cycle.startDate, true)}</h3>
+                      <p>
+                        {displayDate(cycle.startDate)} –{" "}
+                        {displayDate(cycle.renewalDate)}
+                      </p>
+                      <p>
+                        {paid(cycle) === cycle.amountMinor
+                          ? "Settled"
+                          : countdown(cycle.dueDate)}{" "}
+                        · Pay by {cycle.dueDate}
+                      </p>
+                    </div>
+                    <strong>
+                      {money(cycle.amountMinor - paid(cycle), cycle.currency)}{" "}
+                      due
+                    </strong>
+                  </div>
+                  <div className="plan-mini-totals">
+                    <span>
+                      Your share{" "}
+                      <b>{money(cycle.amountMinor, cycle.currency)}</b>
+                    </span>
+                    <span>
+                      Received <b>{money(paid(cycle), cycle.currency)}</b>
+                    </span>
+                  </div>
+                  {cycle.payments.length > 0 && (
+                    <details>
+                      <summary>Payments received</summary>
+                      <ul>
+                        {cycle.payments.map((p, i) => (
+                          <li key={i}>
+                            {p.date} · {money(p.amountMinor, cycle.currency)}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  {cycle.id !== latest?.id && (
+                    <PaymentLink cycle={cycle} name={view.plan.name} />
+                  )}
+                  {paid(cycle) < cycle.amountMinor && (
+                    <button onClick={() => calendar(cycle, view.plan.name)}>
+                      Download payment calendar date
+                    </button>
+                  )}
+                </article>
+              ))}
+            </section>
+          </div>
+          <section hidden={activeTab !== "help"} className="plan-box plan-help">
+            <h2>Help</h2>
+            <p>
+              Choose PhonePe when your phone asks which UPI app to open. Check
+              the recipient in the app before approving. On a computer, copy the
+              UPI ID and pay from your phone.
+            </p>
             <details>
               <summary>I’ve paid. Why is a balance still showing?</summary>
               <p>
@@ -392,15 +469,12 @@ export function SubscriptionViewer() {
             </details>
           </section>
           <p className="plan-fine-print">
-            Updated {updated}. Checks for updates every minute. Dates use India
-            time (IST). Calendar files add an event; reminder settings belong to
-            your calendar app.
+            Updated {updated} · All dates in IST
           </p>
         </>
       )}
       <footer className="plan-footer">
-        Only your manager can change payments or member details. Keep this
-        personal link private.
+        Your private subscription statement.
       </footer>
     </main>
   );

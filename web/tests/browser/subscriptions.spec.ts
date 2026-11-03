@@ -270,7 +270,9 @@ test("personal view sends its fragment token only in the authorization header an
   await expect(page.getByText("HELLO, ALICE", { exact: true })).toBeVisible();
   await expect(page.locator(".plan-personal-summary")).toContainText("₹33.67");
   await expect(page.locator(".plan-personal-summary")).toContainText("₹23.67");
+  await page.getByRole("button", { name: "Help", exact: true }).click();
   await expect(page.getByRole("heading", { name: "How to pay" })).toBeVisible();
+  await page.getByRole("button", { name: "History", exact: true }).click();
   await expect(page.getByText("Manager", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Bob", { exact: true })).toHaveCount(0);
   await expect(
@@ -373,11 +375,13 @@ test("member receipts identify billing month and exact period on mobile", async 
     route.fulfill({ json: personalView }),
   );
   await page.goto(`/subscriptions/view#${token}`);
+  await page.getByRole("button", { name: "History", exact: true }).click();
   const receipts = page.locator(".plan-receipts");
   await expect(receipts).toContainText("For November 2026");
   await expect(receipts).toContainText("1 Nov 2026 – 1 Dec 2026");
   await expect(receipts).toContainText("Payment received: 2 Nov 2026");
   await expect(receipts).toContainText("₹10.00");
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
   const href = await page
     .getByRole("link", { name: "Pay ₹23.67 with UPI" })
     .first()
@@ -407,4 +411,30 @@ test("plan deletion requires the exact plan name and resets the demo", async ({
   await expect(
     page.getByRole("button", { name: "Create plan", exact: true }),
   ).toBeVisible();
+});
+
+test("member join date and past periods stay visible in the statement", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await page
+    .getByRole("button", { name: "Plan & members", exact: true })
+    .click();
+  await page.getByLabel("Joined date for Alice").fill("2026-10-05");
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await page.getByText("Add a past billing period", { exact: true }).click();
+  await page.getByLabel("Past period starts").fill("2026-10-01");
+  await page.getByLabel("Total price for this period").fill("90.00");
+  await page
+    .getByRole("button", { name: "Add past period", exact: true })
+    .click();
+  await expect(page.getByLabel("View cycle")).toContainText("2026-10-01");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "Open next cycle", exact: true })
+    .click();
+  await expect(page.getByLabel("View cycle")).toHaveValue(/.+/);
+  await expect(
+    page.getByLabel("View cycle").locator("option:checked"),
+  ).toContainText("2026-11-01");
 });
