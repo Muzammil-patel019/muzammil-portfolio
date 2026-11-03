@@ -205,7 +205,7 @@ test("demo is explicit, cannot create shared links, and clears on refresh", asyn
     await expect(button).toBeDisabled();
   }
   await expect(
-    page.getByRole("button", { name: "Create link", exact: true }),
+    page.getByRole("button", { name: /^Copy link for / }),
   ).toHaveCount(3);
   await openCycle(page);
   await page.reload();
