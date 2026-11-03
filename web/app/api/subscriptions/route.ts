@@ -89,3 +89,36 @@ export async function POST(request: NextRequest) {
     return failed(error);
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { db, user } = await owner(request);
+    const parsed = z
+      .object({ revision: z.number().int().positive() })
+      .strict()
+      .safeParse(await readJSON(request));
+    if (!parsed.success)
+      return NextResponse.json(
+        { error: "A current plan revision is required." },
+        { status: 400, headers },
+      );
+    const { data, error } = await db
+      .from("subscription_plans")
+      .delete()
+      .eq("owner_id", user.id)
+      .eq("revision", parsed.data.revision)
+      .select("owner_id")
+      .maybeSingle();
+    if (error) throw error;
+    if (!data)
+      return NextResponse.json(
+        {
+          error: "This plan changed on another device. Reload before deleting.",
+        },
+        { status: 409, headers },
+      );
+    return NextResponse.json({ deleted: true }, { headers });
+  } catch (error) {
+    return failed(error);
+  }
+}

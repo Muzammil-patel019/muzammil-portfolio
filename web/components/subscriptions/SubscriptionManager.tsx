@@ -267,6 +267,43 @@ export function SubscriptionManager() {
           Refreshing clears this session.
         </p>
       )}
+      {doc && tab === "settings" && (
+        <section className="plan-box plan-danger-zone">
+          <h2>Remove this plan</h2>
+          <p>
+            Deletes this plan, its billing and payment history, and all personal
+            links. Download a backup below first. This does not cancel your
+            YouTube subscription or reverse any payments.
+          </p>
+          <button
+            disabled={busy}
+            onClick={() => {
+              if (
+                prompt(
+                  `Type ${doc.plan.name} to permanently delete this plan and disable every shared link.`,
+                ) !== doc.plan.name
+              )
+                return;
+              void action(async () => {
+                if (!demo)
+                  await api("/api/subscriptions", "DELETE", { revision });
+                setDoc(null);
+                setRevision(0);
+                setShares([]);
+                setLink("");
+                setPayment(null);
+                setSelected("");
+                setSettings(defaults());
+                setMembersText("");
+                setTab("overview");
+                setMessage("Plan removed. Its personal links no longer work.");
+              });
+            }}
+          >
+            Delete plan permanently
+          </button>
+        </section>
+      )}
       <p className="plan-status" role="status">
         {message}
       </p>
@@ -784,6 +821,11 @@ export function SubscriptionManager() {
                         )?.name
                       }
                     </h3>
+                    <p>
+                      For billing period {cycle.startDate} to{" "}
+                      {cycle.renewalDate}. This receipt will appear in the
+                      member’s personal payment history.
+                    </p>
                     <div className="plan-fields">
                       <div>
                         <label htmlFor="payment-amount">Amount received</label>

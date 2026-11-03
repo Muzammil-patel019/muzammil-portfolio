@@ -651,3 +651,109 @@
   border-color: #193f37;
   color: white;
 }
+/* A personal statement: warm paper, crisp ink, and one clear payment action. */
+.plan-viewer {
+  max-width: 860px;
+  --plan-ink: #182e2b;
+  --plan-muted: #586c66;
+}
+.plan-viewer .plan-title {
+  margin: 48px 0 28px;
+}
+.plan-viewer .plan-personal-summary {
+  background: #183d35;
+  color: #fffdf5;
+  border: 0;
+  border-radius: 20px;
+  padding: clamp(22px, 4vw, 40px);
+  box-shadow: 0 12px 35px #183d3510;
+}
+.plan-viewer .plan-personal-summary p,
+.plan-viewer .plan-personal-summary .plan-label {
+  color: #c3d7cc;
+}
+.plan-viewer .plan-personal-summary strong {
+  letter-spacing: -0.055em;
+}
+.plan-viewer .plan-box {
+  border-radius: 16px;
+  padding: clamp(20px, 4vw, 32px);
+  background: #fffefa;
+}
+.plan-viewer .plan-date-strip {
+  border-radius: 12px;
+  background: #eaf0e8;
+  padding: 20px;
+}
+.plan-viewer .plan-upi-payment .plan-button {
+  background: #e6f39f;
+  color: #203524;
+  border-color: #ccdf82;
+  width: 100%;
+  font-size: 15px;
+  border-radius: 10px;
+  min-height: 52px;
+  margin: 6px 0 18px;
+}
+.plan-upi-payment p {
+  overflow-wrap: anywhere;
+}
+.plan-upi-payment [role="status"] {
+  display: inline-block;
+  margin-left: 10px;
+}
+.plan-receipt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.plan-receipt-list li {
+  padding: 22px 0;
+  border-top: 1px solid var(--plan-line);
+}
+.plan-receipt-list li > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.plan-receipt-list li > div > strong {
+  font-size: 23px;
+  letter-spacing: -0.04em;
+}
+.plan-receipt-list p {
+  margin: 0;
+}
+.plan-help details {
+  border-top: 1px solid var(--plan-line);
+  padding: 16px 0;
+}
+.plan-help summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.plan-help details p {
+  margin: 12px 0 0;
+}
+.plan-danger-zone {
+  border-color: #dab8b0;
+}
+.plan-danger-zone button {
+  color: #983a2a;
+  border-color: #dab8b0;
+}
+@media (max-width: 600px) {
+  .plan-viewer {
+    width: calc(100% - 28px);
+  }
+  .plan-viewer .plan-title {
+    display: block;
+  }
+  .plan-viewer .plan-title > button {
+    margin-top: 18px;
+  }
+  .plan-viewer .plan-date-strip {
+    gap: 16px;
+  }
+}

@@ -364,3 +364,47 @@ test("incomplete personal links explain recovery without sending a token request
     page.getByRole("button", { name: "Try again", exact: true }),
   ).toBeVisible();
 });
+
+test("member receipts identify billing month and exact period on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/subscriptions/view", (route) =>
+    route.fulfill({ json: personalView }),
+  );
+  await page.goto(`/subscriptions/view#${token}`);
+  const receipts = page.locator(".plan-receipts");
+  await expect(receipts).toContainText("For November 2026");
+  await expect(receipts).toContainText("1 Nov 2026 – 1 Dec 2026");
+  await expect(receipts).toContainText("Payment received: 2 Nov 2026");
+  await expect(receipts).toContainText("₹10.00");
+  const href = await page
+    .getByRole("link", { name: "Pay ₹23.67 with UPI" })
+    .first()
+    .getAttribute("href");
+  expect(new URL(href!).searchParams.get("am")).toBe("23.67");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+
+test("plan deletion requires the exact plan name and resets the demo", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await page
+    .getByRole("button", { name: "Plan & members", exact: true })
+    .click();
+  page.once("dialog", (dialog) => dialog.accept("wrong name"));
+  await page.getByRole("button", { name: "Delete plan permanently" }).click();
+  await expect(
+    page.getByRole("button", { name: "Delete plan permanently" }),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept("YouTube Premium"));
+  await page.getByRole("button", { name: "Delete plan permanently" }).click();
+  await expect(
+    page.getByRole("button", { name: "Create plan", exact: true }),
+  ).toBeVisible();
+});

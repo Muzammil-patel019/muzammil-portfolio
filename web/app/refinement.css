@@ -118,3 +118,139 @@
 
 .inline-arrow { display: inline-block; vertical-align: -.08em; flex-shrink: 0; }
 .project-teaser h3 a .inline-arrow { color: #9b9186; }
+
+/* A consistent editorial rhythm across public pages. */
+@media screen {
+  :root {
+    --paper: #f8f8f3;
+    --ink: #202d29;
+    --muted: #607067;
+    --line: #dde3d9;
+    --accent: #476b43;
+  }
+  .site-header {
+    padding-block: 24px;
+  }
+  .site-header nav a[aria-current] {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 8px;
+    text-decoration-color: #accb86;
+  }
+  .portfolio-home {
+    max-width: 880px;
+  }
+  .profile-intro {
+    padding: clamp(40px, 7vw, 76px) 0 48px;
+  }
+  .profile-mark {
+    background: #233d32;
+    border-radius: 24px 24px 24px 7px;
+    box-shadow: 7px 7px 0 #dfe9c9;
+  }
+  .profile-mark span {
+    color: #d9ec9c;
+  }
+  .profile-heading h1 {
+    font-size: clamp(34px, 6vw, 56px);
+  }
+  .profile-summary {
+    max-width: 710px;
+    color: #506157;
+    font-size: 17px;
+    line-height: 1.85;
+  }
+  .profile-footnote {
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  .portfolio-home .button,
+  .subpage-main .button {
+    border-radius: 9px;
+    padding-inline: 20px;
+  }
+  .portfolio-home .button:not(.secondary) {
+    background: #233d32;
+    border-color: #233d32;
+  }
+  .home-section {
+    padding-block: 42px;
+  }
+  .project-teaser {
+    border-radius: 15px;
+    padding: 26px;
+    background: #fffefa;
+    transition:
+      transform 0.2s,
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+  .project-teaser:hover {
+    border-color: #a0b393;
+    transform: translateY(-3px);
+    box-shadow: 0 12px 24px #203d2909;
+  }
+  .project-kind {
+    background: #eaf0df;
+    color: #3c5a32;
+    border-radius: 5px;
+  }
+  .toolbox-list dd span {
+    border-radius: 7px;
+    background: #fffefa;
+    padding: 6px 10px;
+  }
+  .learning-invitation {
+    background: #eaf0df;
+    border-color: #d7e2c9;
+    border-radius: 16px;
+    padding: 30px;
+  }
+  .home-contact {
+    padding-bottom: 55px;
+  }
+  .subpage-hero {
+    padding-block: 56px 36px;
+  }
+  .studio .panel {
+    border-radius: 16px;
+  }
+  .studio .primary {
+    background: #284f3f;
+    border-color: #284f3f;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .profile-heading,
+  .profile-summary,
+  .profile-actions {
+    animation: portfolio-arrive 0.45s ease-out both;
+  }
+  .profile-summary {
+    animation-delay: 0.06s;
+  }
+  .profile-actions {
+    animation-delay: 0.12s;
+  }
+  @keyframes portfolio-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+@media (max-width: 600px) {
+  .project-teaser {
+    padding: 20px;
+  }
+  .learning-invitation {
+    padding: 22px;
+  }
+  .profile-summary {
+    font-size: 16px;
+  }
+}
