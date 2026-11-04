@@ -18,7 +18,8 @@ test("public pages and studio fit desktop and mobile", async ({ page }) => {
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
-        ), `${path} at ${width}px`,
+        ),
+        `${path} at ${width}px`,
       ).toBe(true);
     }
   }
@@ -131,21 +132,20 @@ test("sticky editor actions save edits and remain reachable while scrolling", as
   ).toBeInViewport();
 });
 
-test("home presents each selected project once and links to filterable details", async ({ page }) => {
+test("cream portfolio restores the headline and interactive work showcase", async ({
+  page,
+}) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Muzammil Patel." })).toBeVisible();
-  await expect(page.locator(".project-teaser")).toHaveCount(3);
-  await expect(page.getByRole("heading", { name: "IGT Azurion" })).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Elever" })).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "CT-Incisive" })).toHaveCount(1);
-  await page.getByRole("link", { name: "Read about CT-Incisive" }).click();
-  await expect(page).toHaveURL(/\/projects#project-ct$/);
-  await expect(page.locator("#project-ct")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Good software. Bad day for bugs." }),
+  ).toBeVisible();
+  await expect(page.locator(".experience-grid article")).toHaveCount(3);
+  await expect(
+    page.getByRole("button", { name: "Download PDF", exact: true }),
+  ).toBeVisible();
+  await page.goto("/projects");
   await page.getByRole("button", { name: "Desktop", exact: true }).click();
   await expect(page.locator(".experience-grid article")).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "IGT Azurion" })).toBeVisible();
   await page.getByRole("button", { name: "Web", exact: true }).click();
   await expect(page.locator(".experience-grid article")).toHaveCount(2);
-  await page.goto("/");
-  await expect(page.getByRole("link", { name: "Open learning hub" })).toHaveAttribute("href", "/learning");
 });
