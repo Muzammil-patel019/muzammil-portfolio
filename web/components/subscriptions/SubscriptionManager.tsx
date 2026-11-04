@@ -450,6 +450,7 @@ export function SubscriptionManager() {
                     )[0].renewalDate;
                   next.plan = plan;
                   await persist(next);
+                  fillSettings(next);
                 } else {
                   const names = membersText
                     .split("\n")
