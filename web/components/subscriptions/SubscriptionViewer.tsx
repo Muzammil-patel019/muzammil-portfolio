@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { billingLabels, downloadStatement } from "@/lib/subscription-statement";
 import { daysUntil, money } from "@/lib/subscriptions";
 import { GroupMembers } from "./GroupMembers";
 import { CoverageCards } from "./CoverageCards";
@@ -178,8 +179,27 @@ function PaymentLink({
     if (!response.ok) throw new Error(result.error || "Please try again.");
     return result;
   }
+  const awaiting = reported || !!cycle.reportedAt;
+  const rate = Math.round((cycle.amountMinor * months) / baseMonths);
   return (
     <div className="plan-upi-payment">
+      <ol className="plan-payment-steps" aria-label="Payment steps">
+        <li data-current={!openedAt && !awaiting}>
+          <span>1</span> Choose coverage
+        </li>
+        <li data-current={!!openedAt && !awaiting}>
+          <span>2</span> Pay with UPI
+        </li>
+        <li data-current={awaiting}>
+          <span>3</span> Manager confirms
+        </li>
+      </ol>
+      {awaiting && (
+        <p className="plan-notice" role="status">
+          Payment reported. Your manager will check the receipt before updating
+          your balance. You don’t need to pay again.
+        </p>
+      )}
       <CoverageCards
         cycle={cycle}
         value={months}
@@ -192,88 +212,128 @@ function PaymentLink({
           setStatus("");
         }}
       />
-      <p className="plan-coverage-dates">
-        {displayDate(quote.startDate)} – {displayDate(quote.endDate)}
-      </p>
-      <p className="plan-coverage-price">
-        {money(quote.amountMinor, cycle.currency)}{" "}
-        <small>at the current rate, after recorded payments</small>
-      </p>
-      <button
-        disabled={busy || reported || !!cycle.reportedAt}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            await send("preference");
-            setStatus("Preference sent to your manager for approval.");
-            onReported();
-          } catch (error) {
-            setStatus((error as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
+      <div
+        className="plan-payment-review"
+        role="group"
+        aria-label="Selected payment breakdown"
       >
-        {cycle.coverage?.approvedMonths === months || preferredMonths === months
-          ? "Preference approved"
-          : "Request this schedule"}
-      </button>
-      {cycle.coverage?.requestedAt &&
-        cycle.coverage.approvedMonths !== months && (
-          <small>Schedule request awaiting approval</small>
+        <div>
+          <span>Coverage</span>
+          <strong>
+            {displayDate(quote.startDate)} – {displayDate(quote.endDate)}
+          </strong>
+        </div>
+        <div>
+          <span>
+            Price for {months} {months === 1 ? "month" : "months"}
+          </span>
+          <strong>{money(rate, cycle.currency)}</strong>
+        </div>
+        {paid(cycle) > 0 && (
+          <div>
+            <span>Already recorded</span>
+            <strong>−{money(paid(cycle), cycle.currency)}</strong>
+          </div>
         )}
-      <a
-        className="plan-button"
-        href={payment?.href}
-        aria-disabled={!payment || busy}
-        onClick={async (e) => {
-          e.preventDefault();
-          if (busy || !payment) return;
-          setBusy(true);
-          setStatus("");
-          window.open(payment.href, "_blank", "noopener,noreferrer");
-          try {
-            await send("opened");
-            setOpenedAt(Date.now());
-            setSeconds(10);
-          } catch (error) {
-            setStatus((error as Error).message);
-          } finally {
-            setBusy(false);
+        {creditMinor > 0 && (
+          <div>
+            <span>Available advance credit</span>
+            <strong>
+              −
+              {money(
+                Math.min(creditMinor, Math.max(0, rate - paid(cycle))),
+                cycle.currency,
+              )}
+            </strong>
+          </div>
+        )}
+        <div className="plan-payment-total">
+          <span>To pay now</span>
+          <strong>{money(quote.amountMinor, cycle.currency)}</strong>
+        </div>
+      </div>
+      <div className="plan-payment-actions">
+        <button
+          disabled={busy || reported || !!cycle.reportedAt}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await send("preference");
+              setStatus("Preference sent to your manager for approval.");
+              onReported();
+            } catch (error) {
+              setStatus((error as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {cycle.coverage?.approvedMonths === months ||
+          preferredMonths === months
+            ? "Preference approved"
+            : "Request this schedule"}
+        </button>
+        {cycle.coverage?.requestedAt &&
+          cycle.coverage.approvedMonths !== months && (
+            <small>Schedule request awaiting approval</small>
+          )}
+        <a
+          className="plan-button"
+          role="link"
+          href={awaiting || busy ? undefined : payment?.href}
+          tabIndex={awaiting || busy || !payment ? -1 : 0}
+          aria-disabled={!payment || busy || awaiting}
+          onClick={async (e) => {
+            e.preventDefault();
+            if (busy || !payment || awaiting) return;
+            setBusy(true);
+            setStatus("");
+            window.open(payment.href, "_blank", "noopener,noreferrer");
+            try {
+              await send("opened");
+              setOpenedAt(Date.now());
+              setSeconds(10);
+            } catch (error) {
+              setStatus((error as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {awaiting
+            ? "Awaiting manager confirmation"
+            : payment
+              ? `Pay ${money(quote.amountMinor, cycle.currency)} with UPI`
+              : quote.amountMinor === 0
+                ? "Selected coverage already paid"
+                : "Payment details not set"}
+        </a>
+        <button
+          className="plan-report-paid"
+          disabled={
+            busy || reported || !!cycle.reportedAt || !openedAt || seconds > 0
           }
-        }}
-      >
-        {payment
-          ? `Pay ${money(quote.amountMinor, cycle.currency)} with UPI`
-          : quote.amountMinor === 0
-            ? "Selected coverage already paid"
-            : "Payment details not set"}
-      </a>
-      <button
-        className="plan-report-paid"
-        disabled={
-          busy || reported || !!cycle.reportedAt || !openedAt || seconds > 0
-        }
-        onClick={async () => {
-          setBusy(true);
-          try {
-            await send("paid");
-            setReported(true);
-            setStatus("Sent to your manager for confirmation.");
-            onReported();
-          } catch (error) {
-            setStatus((error as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        {reported || cycle.reportedAt
-          ? "Reported paid · awaiting confirmation"
-          : seconds > 0
-            ? `I’ve paid · ${seconds}s`
-            : "I’ve paid"}
-      </button>
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await send("paid");
+              setReported(true);
+              setStatus("Sent to your manager for confirmation.");
+              onReported();
+            } catch (error) {
+              setStatus((error as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {reported || cycle.reportedAt
+            ? "Reported paid · awaiting confirmation"
+            : seconds > 0
+              ? `I’ve paid · ${seconds}s`
+              : "I’ve paid"}
+        </button>
+      </div>
       <p className="plan-payee">
         {payment?.upiId}{" "}
         <button
@@ -291,8 +351,8 @@ function PaymentLink({
         </button>
       </p>
       <small>
-        Pay upfront or request approval. Extra payment becomes advance credit
-        after your manager confirms receipt.
+        Pay directly to your manager. “I’ve paid” sends a request for
+        verification. Extra payment becomes credit once confirmed.
       </small>
       <span role="status">{status}</span>
     </div>
@@ -305,10 +365,13 @@ export function SubscriptionViewer({
     [message, setMessage] = useState("Opening your personal plan…"),
     [busy, setBusy] = useState(false),
     [updated, setUpdated] = useState("");
+  const refreshSequence = useRef(0);
+  const [historyFilter, setHistoryFilter] = useState("all");
   const [activeTab, setActiveTab] = useState<"overview" | "history">(
     "overview",
   );
   async function refresh() {
+    const sequence = ++refreshSequence.current;
     const token = accessCode || location.hash.slice(1);
     if (!/^(?:[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/.test(token)) {
       setView(null);
@@ -325,11 +388,14 @@ export function SubscriptionViewer({
         referrerPolicy: "no-referrer",
       });
       const data = await response.json();
-      if (!response.ok)
+      if (sequence !== refreshSequence.current) return;
+      if (!response.ok) {
+        if ([400, 401, 403, 404, 410].includes(response.status)) setView(null);
         throw new Error(
           data.error ||
             "This link is unavailable. Ask your plan manager for a new link.",
         );
+      }
       setView(data);
       setMessage("");
       setUpdated(
@@ -340,19 +406,25 @@ export function SubscriptionViewer({
         }).format(new Date()) + " IST",
       );
     } catch (e) {
-      setView(null);
-      setMessage((e as Error).message);
+      if (sequence === refreshSequence.current)
+        setMessage((e as Error).message);
     } finally {
-      setBusy(false);
+      if (sequence === refreshSequence.current) setBusy(false);
     }
   }
   useEffect(() => {
+    setView(null);
     void refresh();
     const timer = setInterval(() => void refresh(), 60000);
-    window.addEventListener("hashchange", refresh);
+    const changedLink = () => {
+      setView(null);
+      void refresh();
+    };
+    window.addEventListener("hashchange", changedLink);
     return () => {
+      refreshSequence.current++;
       clearInterval(timer);
-      window.removeEventListener("hashchange", refresh);
+      window.removeEventListener("hashchange", changedLink);
     };
   }, [accessCode]);
   const cycles = view
@@ -396,7 +468,10 @@ export function SubscriptionViewer({
             </button>
           </div>
           <div className="plan-member-meta">
-            <span>{view.plan.interval} plan</span>
+            <span>
+              {billingLabels[view.plan.interval]?.label || view.plan.interval}{" "}
+              plan
+            </span>
             <span>
               {view.member.joinedDate
                 ? `Member since ${displayDate(view.member.joinedDate)}`
@@ -420,7 +495,6 @@ export function SubscriptionViewer({
             </button>
           </nav>
           <div hidden={activeTab !== "overview"}>
-            {view.groupMembers && <GroupMembers members={view.groupMembers} />}
             {cycles.some(
               (c) => c.id !== latest?.id && paid(c) < c.amountMinor,
             ) && (
@@ -436,19 +510,37 @@ export function SubscriptionViewer({
                 <span className="plan-label">
                   {displayDate(latest.startDate, true)}
                 </span>
-                <span className="plan-label">AMOUNT DUE</span>
+                <span className="plan-label">CURRENT BILL · AMOUNT DUE</span>
                 <strong>
                   {money(latest.amountMinor - paid(latest), latest.currency)}
                 </strong>
                 <span>
-                  {paid(latest) === latest.amountMinor
-                    ? "Paid in full"
-                    : countdown(latest.dueDate)}
+                  {latest.reportedAt
+                    ? "Payment reported · awaiting confirmation"
+                    : paid(latest) === latest.amountMinor
+                      ? "Paid in full"
+                      : countdown(latest.dueDate)}
                 </span>
-                <p>
-                  {displayDate(latest.startDate)} –{" "}
-                  {displayDate(latest.renewalDate)}
-                </p>
+                <div className="plan-bill-details">
+                  <span>
+                    Billing period
+                    <strong>
+                      {displayDate(latest.startDate)} –{" "}
+                      {displayDate(latest.renewalDate)}
+                    </strong>
+                  </span>
+                  <span>
+                    Pay by<strong>{displayDate(latest.dueDate)}</strong>
+                  </span>
+                </div>
+                {paid(latest) < latest.amountMinor && (
+                  <button
+                    className="plan-calendar-action"
+                    onClick={() => calendar(latest, view.plan.name)}
+                  >
+                    Add due date to calendar
+                  </button>
+                )}
               </section>
             ) : (
               <div className="plan-box plan-empty">
@@ -497,6 +589,7 @@ export function SubscriptionViewer({
                 />
               </section>
             )}
+            {view.groupMembers && <GroupMembers members={view.groupMembers} />}
           </div>
           {activeTab === "history" && (
             <PaymentActivity
@@ -518,11 +611,65 @@ export function SubscriptionViewer({
             hidden={activeTab !== "history"}
           >
             <section className="plan-box">
-              <h2>Payment history</h2>
-              <p>
-                Earlier unpaid balances stay visible here. Each bill is tracked
-                separately.
-              </p>
+              <div className="plan-section-head">
+                <div>
+                  <p className="plan-label">YOUR RECORDS</p>
+                  <h2>Payment history</h2>
+                </div>
+                <button
+                  onClick={() => downloadStatement(view.plan.name, cycles)}
+                  disabled={!cycles.length}
+                >
+                  Download statement
+                </button>
+              </div>
+              <p>Confirmed receipts and outstanding bills, all in one place.</p>
+              <div
+                className="plan-history-filters"
+                aria-label="Filter billing history"
+              >
+                {[
+                  { value: "all", label: "All bills" },
+                  { value: "unpaid", label: "Outstanding" },
+                  { value: "settled", label: "Settled" },
+                ].map((filter) => (
+                  <button
+                    key={filter.value}
+                    aria-pressed={historyFilter === filter.value}
+                    onClick={() => setHistoryFilter(filter.value)}
+                  >
+                    {filter.label}{" "}
+                    <span>
+                      {
+                        cycles.filter(
+                          (c) =>
+                            filter.value === "all" ||
+                            (filter.value === "settled"
+                              ? paid(c) >= c.amountMinor
+                              : paid(c) < c.amountMinor),
+                        ).length
+                      }
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {cycles.filter(
+                (c) =>
+                  historyFilter === "all" ||
+                  (historyFilter === "settled"
+                    ? paid(c) >= c.amountMinor
+                    : paid(c) < c.amountMinor),
+              ).length === 0 && (
+                <p className="plan-empty">
+                  No{" "}
+                  {historyFilter === "unpaid"
+                    ? "outstanding"
+                    : historyFilter === "settled"
+                      ? "settled"
+                      : "recorded"}{" "}
+                  bills to show.
+                </p>
+              )}
               {(view.credits || []).map((c) => (
                 <article className="plan-member-cycle" key={c.id}>
                   <h3>Advance payment received</h3>
@@ -537,76 +684,84 @@ export function SubscriptionViewer({
                   </p>
                 </article>
               ))}
-              {cycles.map((cycle) => (
-                <article className="plan-member-cycle" key={cycle.id}>
-                  <div className="plan-section-head">
-                    <div>
-                      <h3>{displayDate(cycle.startDate, true)}</h3>
-                      <p>
-                        {displayDate(cycle.startDate)} –{" "}
-                        {displayDate(cycle.renewalDate)}
-                      </p>
-                      <p>
-                        {paid(cycle) === cycle.amountMinor
-                          ? "Settled"
-                          : countdown(cycle.dueDate)}{" "}
-                        · Pay by {cycle.dueDate}
-                      </p>
+              {cycles
+                .filter(
+                  (c) =>
+                    historyFilter === "all" ||
+                    (historyFilter === "settled"
+                      ? paid(c) >= c.amountMinor
+                      : paid(c) < c.amountMinor),
+                )
+                .map((cycle) => (
+                  <article className="plan-member-cycle" key={cycle.id}>
+                    <div className="plan-section-head">
+                      <div>
+                        <h3>{displayDate(cycle.startDate, true)}</h3>
+                        <p>
+                          {displayDate(cycle.startDate)} –{" "}
+                          {displayDate(cycle.renewalDate)}
+                        </p>
+                        <p>
+                          {paid(cycle) === cycle.amountMinor
+                            ? "Settled"
+                            : countdown(cycle.dueDate)}{" "}
+                          · Pay by {cycle.dueDate}
+                        </p>
+                      </div>
+                      <strong>
+                        {money(cycle.amountMinor - paid(cycle), cycle.currency)}{" "}
+                        due
+                      </strong>
                     </div>
-                    <strong>
-                      {money(cycle.amountMinor - paid(cycle), cycle.currency)}{" "}
-                      due
-                    </strong>
-                  </div>
-                  <div className="plan-mini-totals">
-                    <span>
-                      Your share{" "}
-                      <b>{money(cycle.amountMinor, cycle.currency)}</b>
-                    </span>
-                    <span>
-                      Received <b>{money(paid(cycle), cycle.currency)}</b>
-                    </span>
-                  </div>
-                  {cycle.payments.length > 0 && (
-                    <details>
-                      <summary>Payments received</summary>
-                      <ul>
-                        {cycle.payments.map((p, i) => (
-                          <li key={i}>
-                            {displayDate(p.date)} ·{" "}
-                            {money(p.amountMinor, cycle.currency)}
-                            {p.sourceCreditId
-                              ? " · Advance credit applied"
-                              : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                  {cycle.id !== latest?.id && (
-                    <PaymentLink
-                      key={cycle.id}
-                      cycle={cycle}
-                      plan={view.plan}
-                      preferredMonths={view.member.preferredMonths}
-                      creditMinor={(view.credits || [])
-                        .filter(
-                          (c) =>
-                            c.currency === cycle.currency &&
-                            c.startDate <= cycle.startDate,
-                        )
-                        .reduce((sum, c) => sum + c.remainingMinor, 0)}
-                      accessCode={accessCode}
-                      onReported={() => void refresh()}
-                    />
-                  )}
-                  {paid(cycle) < cycle.amountMinor && (
-                    <button onClick={() => calendar(cycle, view.plan.name)}>
-                      Download payment calendar date
-                    </button>
-                  )}
-                </article>
-              ))}
+                    <div className="plan-mini-totals">
+                      <span>
+                        Your share{" "}
+                        <b>{money(cycle.amountMinor, cycle.currency)}</b>
+                      </span>
+                      <span>
+                        Received <b>{money(paid(cycle), cycle.currency)}</b>
+                      </span>
+                    </div>
+                    {cycle.payments.length > 0 && (
+                      <details>
+                        <summary>Payments received</summary>
+                        <ul>
+                          {cycle.payments.map((p, i) => (
+                            <li key={i}>
+                              {displayDate(p.date)} ·{" "}
+                              {money(p.amountMinor, cycle.currency)}
+                              {p.sourceCreditId
+                                ? " · Advance credit applied"
+                                : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {cycle.id !== latest?.id && (
+                      <PaymentLink
+                        key={cycle.id}
+                        cycle={cycle}
+                        plan={view.plan}
+                        preferredMonths={view.member.preferredMonths}
+                        creditMinor={(view.credits || [])
+                          .filter(
+                            (c) =>
+                              c.currency === cycle.currency &&
+                              c.startDate <= cycle.startDate,
+                          )
+                          .reduce((sum, c) => sum + c.remainingMinor, 0)}
+                        accessCode={accessCode}
+                        onReported={() => void refresh()}
+                      />
+                    )}
+                    {paid(cycle) < cycle.amountMinor && (
+                      <button onClick={() => calendar(cycle, view.plan.name)}>
+                        Download payment calendar date
+                      </button>
+                    )}
+                  </article>
+                ))}
             </section>
           </div>
           <p className="plan-fine-print">
