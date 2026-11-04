@@ -27,11 +27,24 @@ export async function GET(request: NextRequest) {
     const { db, user } = await owner(request);
     const { data, error } = await db
       .from("subscription_plans")
-      .select("document,revision")
+      .select("id,document,revision")
       .eq("owner_id", user.id)
-      .maybeSingle();
+      .order("updated_at", { ascending: true });
     if (error) throw error;
-    return NextResponse.json(data, { headers });
+    const planId = request.nextUrl.searchParams.get("planId");
+    const selected = planId
+      ? data?.find((plan) => plan.id === planId)
+      : data?.[0];
+    return NextResponse.json(
+      {
+        ...(selected || {}),
+        plans: (data || []).map((plan) => ({
+          id: plan.id,
+          name: plan.document.plan.name,
+        })),
+      },
+      { headers },
+    );
   } catch (error) {
     return failed(error);
   }
@@ -43,6 +56,7 @@ export async function POST(request: NextRequest) {
     const parsed = z
       .object({
         document: documentSchema,
+        planId: z.uuid().nullable().optional(),
         revision: z.number().int().nonnegative().max(2_000_000_000),
       })
       .strict()
@@ -55,7 +69,12 @@ export async function POST(request: NextRequest) {
         },
         { status: 400, headers },
       );
-    const { document, revision } = parsed.data;
+    const { document, revision, planId } = parsed.data;
+    if (revision > 0 && !planId)
+      return NextResponse.json(
+        { error: "Choose a plan before saving." },
+        { status: 400, headers },
+      );
     const query =
       revision === 0
         ? db
@@ -65,8 +84,9 @@ export async function POST(request: NextRequest) {
             .from("subscription_plans")
             .update({ document, revision: revision + 1 })
             .eq("owner_id", user.id)
-            .eq("revision", revision);
-    const { data, error } = await query.select("revision").maybeSingle();
+            .eq("revision", revision)
+            .eq("id", planId!);
+    const { data, error } = await query.select("id,revision").maybeSingle();
     if (error?.code === "23505" || (!error && !data))
       return NextResponse.json(
         {
@@ -94,7 +114,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { db, user } = await owner(request);
     const parsed = z
-      .object({ revision: z.number().int().positive() })
+      .object({ revision: z.number().int().positive(), planId: z.uuid() })
       .strict()
       .safeParse(await readJSON(request));
     if (!parsed.success)
@@ -107,6 +127,7 @@ export async function DELETE(request: NextRequest) {
       .delete()
       .eq("owner_id", user.id)
       .eq("revision", parsed.data.revision)
+      .eq("id", parsed.data.planId)
       .select("owner_id")
       .maybeSingle();
     if (error) throw error;

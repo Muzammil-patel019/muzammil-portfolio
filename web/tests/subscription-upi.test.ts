@@ -31,3 +31,11 @@ test("settled, non-INR, and unrelated plans never offer a payment to the YouTube
     null,
   );
 });
+
+test("other services use their explicitly configured payee", () => {
+  const payment = subscriptionUpiPayment("Cloud storage", cycle, { upiId: "sharedplans@axl", payeeName: "Plan manager" })!;
+  const url = new URL(payment.href);
+  assert.equal(url.searchParams.get("pa"), "sharedplans@axl");
+  assert.equal(url.searchParams.get("pn"), "Plan manager");
+  assert.match(url.searchParams.get("tn")!, /Cloud storage/);
+});

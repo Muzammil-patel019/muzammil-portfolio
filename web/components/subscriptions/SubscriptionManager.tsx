@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { browserClient } from "@/lib/supabase";
 import {
@@ -18,7 +18,9 @@ type Settings = {
   name: string;
   currency: "INR" | "USD" | "EUR" | "GBP";
   amount: string;
-  interval: "monthly" | "yearly";
+  interval: "monthly" | "quarterly" | "half-yearly" | "yearly";
+  upiId: string;
+  payeeName: string;
   anchorDate: string;
   paymentNote: string;
 };
@@ -29,6 +31,8 @@ const defaults = (): Settings => ({
   interval: "monthly",
   anchorDate: todayIST(),
   paymentNote: "",
+  upiId: "",
+  payeeName: "",
 });
 const clone = <T,>(value: T): T => structuredClone(value);
 export function SubscriptionManager() {
@@ -37,6 +41,14 @@ export function SubscriptionManager() {
   const [auth, setAuth] = useState<"checking" | "signedout" | "signedin">(
     demo ? "signedin" : "checking",
   );
+  const [planId, setPlanId] = useState("");
+  const [plans, setPlans] = useState<{ id: string; name: string }[]>([]);
+  const [demoPlans, setDemoPlans] = useState<
+    Record<string, SubscriptionDocument>
+  >({});
+  const [reports, setReports] = useState<
+    { member_id: string; cycle_id: string; reported_at: string }[]
+  >([]);
   const [doc, setDoc] = useState<SubscriptionDocument | null>(null),
     [revision, setRevision] = useState(0);
   const [settings, setSettings] = useState<Settings>(defaults),
@@ -57,6 +69,15 @@ export function SubscriptionManager() {
   async function api(path: string, method = "GET", body?: unknown) {
     const { data } = await db!.auth.getSession();
     if (!data.session) throw new Error("Sign in again to manage your plan.");
+    if (
+      path.startsWith("/api/subscriptions") &&
+      method === "GET" &&
+      !path.includes("?") &&
+      planId
+    )
+      path += `?planId=${planId}`;
+    if (path.startsWith("/api/subscriptions") && method !== "GET")
+      body = { ...(body as object), planId: planId || null };
     const response = await fetch(path, {
       method,
       cache: "no-store",
@@ -109,13 +130,21 @@ export function SubscriptionManager() {
     setSettings({
       ...value.plan,
       amount: (value.plan.amountMinor / 100).toFixed(2),
+      upiId:
+        value.plan.upiId ||
+        (/^(youtube|yt) premium$/i.test(value.plan.name)
+          ? "muzammilytpremium@axl"
+          : ""),
+      payeeName: value.plan.payeeName || "",
     });
   }
-  async function load() {
+  async function load(id = planId) {
     setBusy(true);
     setMessage("");
     try {
-      const result = await api("/api/subscriptions");
+      const result = await api(`/api/subscriptions?planId=${id}`);
+      setPlans(result?.plans || []);
+      setPlanId(result?.id || "");
       setDoc(result?.document || null);
       setRevision(result?.revision || 0);
       setLoaded(true);
@@ -124,7 +153,10 @@ export function SubscriptionManager() {
         fillSettings(result.document);
         setSelected(result.document.cycles.at(-1)?.id || "");
       }
-      const sharing = await api("/api/subscriptions/share");
+      const sharing = await api(
+        `/api/subscriptions/share?planId=${result?.id || ""}`,
+      );
+      setReports(sharing.reports || []);
       setShares(
         (Array.isArray(sharing) ? sharing : sharing.shares || []).map(
           (s: { memberId: string }) => s.memberId,
@@ -162,6 +194,20 @@ export function SubscriptionManager() {
       data.subscription.unsubscribe();
     };
   }, [db, demo]);
+  useEffect(() => {
+    if (demo || !planId || auth !== "signedin") return;
+    const refreshReports = () => {
+      void api(`/api/subscriptions/share?planId=${planId}`)
+        .then((result) => setReports(result.reports || []))
+        .catch(() => {});
+    };
+    const timer = setInterval(refreshReports, 15000);
+    window.addEventListener("focus", refreshReports);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refreshReports);
+    };
+  }, [planId, auth, demo]);
   async function persist(next: SubscriptionDocument) {
     const checked = documentSchema.safeParse(next);
     if (!checked.success)
@@ -169,6 +215,13 @@ export function SubscriptionManager() {
         checked.error.issues[0]?.message || "Check the plan fields.",
       );
     if (demo) {
+      const id = planId || crypto.randomUUID();
+      setPlanId(id);
+      setDemoPlans((current) => ({ ...current, [id]: next }));
+      setPlans((current) => [
+        ...current.filter((p) => p.id !== id),
+        { id, name: next.plan.name },
+      ]);
       setDoc(next);
       setMessage("Updated in this demo session only.");
       return;
@@ -178,6 +231,11 @@ export function SubscriptionManager() {
       revision,
     });
     setDoc(next);
+    setPlanId(result.id);
+    setPlans((current) => [
+      ...current.filter((p) => p.id !== result.id),
+      { id: result.id, name: next.plan.name },
+    ]);
     setRevision(result.revision);
     setMessage("Saved online. Shared member pages show this update.");
   }
@@ -201,6 +259,8 @@ export function SubscriptionManager() {
       interval: settings.interval,
       anchorDate: settings.anchorDate,
       paymentNote: settings.paymentNote.trim(),
+      upiId: settings.upiId.trim(),
+      payeeName: settings.payeeName.trim(),
     };
   }
   const cycle =
@@ -272,6 +332,49 @@ export function SubscriptionManager() {
           )}
         </div>
       </header>
+      <nav className="plan-switcher" aria-label="Subscriptions">
+        {plans.map((plan) => (
+          <button
+            key={plan.id}
+            disabled={busy}
+            aria-pressed={planId === plan.id}
+            onClick={() => {
+              setLink("");
+              setPayment(null);
+              setReports([]);
+              setShares([]);
+              if (demo) {
+                const value = demoPlans[plan.id];
+                setPlanId(plan.id);
+                setDoc(value);
+                fillSettings(value);
+                setSelected("");
+                setTab("overview");
+              } else void load(plan.id);
+            }}
+          >
+            {plan.name}
+          </button>
+        ))}
+        <button
+          disabled={busy}
+          onClick={() => {
+            setPlanId("");
+            setDoc(null);
+            setRevision(0);
+            setSettings({ ...defaults(), name: "" });
+            setMembersText("");
+            setSelected("");
+            setLink("");
+            setShares([]);
+            setReports([]);
+            setPayment(null);
+            setTab("settings");
+          }}
+        >
+          + Add subscription
+        </button>
+      </nav>
       <div className="plan-title">
         <div>
           <p className="plan-label">SPLIT FAIRLY. KEEP IT SIMPLE.</p>
@@ -304,43 +407,6 @@ export function SubscriptionManager() {
           Demo mode. Nothing is saved online, and share links are unavailable.
           Refreshing clears this session.
         </p>
-      )}
-      {doc && tab === "settings" && (
-        <section className="plan-box plan-danger-zone">
-          <h2>Remove this plan</h2>
-          <p>
-            Deletes this plan, its billing and payment history, and all personal
-            links. Download a backup below first. This does not cancel your
-            YouTube subscription or reverse any payments.
-          </p>
-          <button
-            disabled={busy}
-            onClick={() => {
-              if (
-                prompt(
-                  `Type ${doc.plan.name} to permanently delete this plan and disable every shared link.`,
-                ) !== doc.plan.name
-              )
-                return;
-              void action(async () => {
-                if (!demo)
-                  await api("/api/subscriptions", "DELETE", { revision });
-                setDoc(null);
-                setRevision(0);
-                setShares([]);
-                setLink("");
-                setPayment(null);
-                setSelected("");
-                setSettings(defaults());
-                setMembersText("");
-                setTab("overview");
-                setMessage("Plan removed. Its personal links no longer work.");
-              });
-            }}
-          >
-            Delete plan permanently
-          </button>
-        </section>
       )}
       <p className="plan-status" role="status">
         {message}
@@ -375,13 +441,13 @@ export function SubscriptionManager() {
                 if (doc) {
                   const next = clone(doc);
                   if (
-                    doc.cycles.length &&
-                    (plan.anchorDate !== doc.plan.anchorDate ||
-                      plan.interval !== doc.plan.interval)
+                    plan.interval !== doc.plan.interval &&
+                    plan.anchorDate === doc.plan.anchorDate &&
+                    doc.cycles.length
                   )
-                    throw new Error(
-                      "Billing start and frequency stay fixed after the first cycle so history remains consistent.",
-                    );
+                    plan.anchorDate = [...doc.cycles].sort((a, b) =>
+                      b.startDate.localeCompare(a.startDate),
+                    )[0].renewalDate;
                   next.plan = plan;
                   await persist(next);
                 } else {
@@ -463,7 +529,6 @@ export function SubscriptionManager() {
                   <label htmlFor="plan-frequency">Billing frequency</label>
                   <select
                     id="plan-frequency"
-                    disabled={!!doc?.cycles.length}
                     value={settings.interval}
                     onChange={(e) =>
                       setSettings({
@@ -473,22 +538,45 @@ export function SubscriptionManager() {
                     }
                   >
                     <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="half-yearly">Half-yearly</option>
                     <option value="yearly">Yearly</option>
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="plan-start">First billing date</label>
+                  <label htmlFor="plan-start">Billing schedule starts</label>
                   <input
                     id="plan-start"
                     type="date"
                     required
-                    disabled={!!doc?.cycles.length}
                     value={settings.anchorDate}
                     onChange={(e) =>
                       setSettings({ ...settings, anchorDate: e.target.value })
                     }
                   />
                 </div>
+              </div>
+              <div className="plan-fields">
+                <label>
+                  Receiving UPI ID
+                  <input
+                    value={settings.upiId}
+                    placeholder="name@bank"
+                    onChange={(e) =>
+                      setSettings({ ...settings, upiId: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Payee name
+                  <input
+                    value={settings.payeeName}
+                    placeholder="Name shown to members"
+                    onChange={(e) =>
+                      setSettings({ ...settings, payeeName: e.target.value })
+                    }
+                  />
+                </label>
               </div>
               <label htmlFor="payment-note">
                 Payment instructions (shown on member pages)
@@ -550,7 +638,7 @@ export function SubscriptionManager() {
                       </span>
                       <div className="plan-actions">
                         <label>
-                          Joined YouTube
+                          Joined plan
                           <input
                             type="date"
                             aria-label={`Joined date for ${member.name}`}
@@ -848,161 +936,206 @@ export function SubscriptionManager() {
                         const paid = paidTotal(allocation),
                           balance = allocation.amountMinor - paid;
                         return (
-                          <tr key={allocation.memberId}>
-                            <td>
-                              <strong>{allocation.name}</strong>
-                              <span
-                                className={`plan-badge ${balance === 0 ? "settled" : ""}`}
-                              >
-                                {balance === 0
-                                  ? "Settled"
-                                  : paid
-                                    ? "Part paid"
-                                    : "Awaiting payment"}
-                              </span>
-                            </td>
-                            <td data-label="Share">
-                              {money(allocation.amountMinor, cycle.currency)}
-                            </td>
-                            <td data-label="Paid">
-                              {money(paid, cycle.currency)}
-                            </td>
-                            <td data-label="Balance">
-                              {money(balance, cycle.currency)}
-                            </td>
-                            <td>
-                              <button
-                                disabled={busy || balance === 0}
-                                onClick={() =>
-                                  setPayment({
-                                    memberId: allocation.memberId,
-                                    amount: (balance / 100).toFixed(2),
-                                    date: todayIST(),
-                                    note: "",
-                                  })
-                                }
-                              >
-                                Record payment
-                              </button>
-                              <button
-                                disabled={busy || balance === 0}
-                                onClick={() =>
-                                  void copy(
-                                    reminder(
-                                      allocation.name,
-                                      balance,
-                                      cycle.currency,
-                                      cycle.dueDate,
-                                    ),
+                          <Fragment key={allocation.memberId}>
+                            <tr>
+                              <td>
+                                <strong>{allocation.name}</strong>
+                                <span
+                                  className={`plan-badge ${balance === 0 ? "settled" : ""}`}
+                                >
+                                  {balance === 0
+                                    ? "Settled"
+                                    : reports.some(
+                                          (r) =>
+                                            r.member_id ===
+                                              allocation.memberId &&
+                                            r.cycle_id === cycle.id,
+                                        )
+                                      ? "Member reported paid · verify"
+                                      : paid
+                                        ? "Part paid"
+                                        : "Awaiting payment"}
+                                </span>
+                              </td>
+                              <td data-label="Share">
+                                {money(allocation.amountMinor, cycle.currency)}
+                              </td>
+                              <td data-label="Paid">
+                                {money(paid, cycle.currency)}
+                              </td>
+                              <td data-label="Balance">
+                                {money(balance, cycle.currency)}
+                              </td>
+                              <td>
+                                <button
+                                  disabled={busy || balance === 0}
+                                  onClick={() =>
+                                    setPayment({
+                                      memberId: allocation.memberId,
+                                      amount: (balance / 100).toFixed(2),
+                                      date: todayIST(),
+                                      note: "",
+                                    })
+                                  }
+                                >
+                                  {reports.some(
+                                    (r) =>
+                                      r.member_id === allocation.memberId &&
+                                      r.cycle_id === cycle.id,
                                   )
-                                }
-                              >
-                                Copy reminder
-                              </button>
-                            </td>
-                          </tr>
+                                    ? "Verify & record"
+                                    : "Record payment"}
+                                </button>
+                                <button
+                                  disabled={busy || balance === 0}
+                                  onClick={() =>
+                                    void copy(
+                                      reminder(
+                                        allocation.name,
+                                        balance,
+                                        cycle.currency,
+                                        cycle.dueDate,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  Copy reminder
+                                </button>
+                              </td>
+                            </tr>
+                            <tr
+                              className="plan-inline-receipt"
+                              hidden={payment?.memberId !== allocation.memberId}
+                            >
+                              <td colSpan={5}>
+                                {" "}
+                                {payment?.memberId === allocation.memberId && (
+                                  <form
+                                    className="plan-payment-form"
+                                    onSubmit={(e) => {
+                                      e.preventDefault();
+                                      void action(async () => {
+                                        const next = clone(doc);
+                                        const allocation = next.cycles
+                                          .find((c) => c.id === cycle.id)!
+                                          .allocations.find(
+                                            (a) =>
+                                              a.memberId === payment.memberId,
+                                          )!;
+                                        const amountMinor = parseMoney(
+                                          payment.amount,
+                                        );
+                                        if (
+                                          amountMinor >
+                                          allocation.amountMinor -
+                                            paidTotal(allocation)
+                                        )
+                                          throw new Error(
+                                            "Payment exceeds this member’s remaining balance.",
+                                          );
+                                        allocation.payments.push({
+                                          id: crypto.randomUUID(),
+                                          amountMinor,
+                                          date: payment.date,
+                                          note: payment.note.trim(),
+                                        });
+                                        await persist(next);
+                                        setPayment(null);
+                                      });
+                                    }}
+                                  >
+                                    <h3>
+                                      Record payment for{" "}
+                                      {
+                                        cycle.allocations.find(
+                                          (a) =>
+                                            a.memberId === payment.memberId,
+                                        )?.name
+                                      }
+                                    </h3>
+                                    <p>
+                                      For billing period {cycle.startDate} to{" "}
+                                      {cycle.renewalDate}. This receipt will
+                                      appear in the member’s personal payment
+                                      history.
+                                    </p>
+                                    <div className="plan-fields">
+                                      <div>
+                                        <label htmlFor="payment-amount">
+                                          Amount received
+                                        </label>
+                                        <input
+                                          id="payment-amount"
+                                          required
+                                          type="number"
+                                          min="0.01"
+                                          step="0.01"
+                                          value={payment.amount}
+                                          onChange={(e) =>
+                                            setPayment({
+                                              ...payment,
+                                              amount: e.target.value,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                      <div>
+                                        <label htmlFor="payment-date">
+                                          Payment date
+                                        </label>
+                                        <input
+                                          id="payment-date"
+                                          required
+                                          type="date"
+                                          value={payment.date}
+                                          onChange={(e) =>
+                                            setPayment({
+                                              ...payment,
+                                              date: e.target.value,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                    <label htmlFor="payment-reference">
+                                      Private reference / note
+                                    </label>
+                                    <input
+                                      id="payment-reference"
+                                      maxLength={200}
+                                      value={payment.note}
+                                      onChange={(e) =>
+                                        setPayment({
+                                          ...payment,
+                                          note: e.target.value,
+                                        })
+                                      }
+                                    />
+                                    <div className="plan-actions">
+                                      <button
+                                        className="plan-button"
+                                        disabled={busy}
+                                        type="submit"
+                                      >
+                                        Save payment
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setPayment(null)}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </form>
+                                )}
+                              </td>
+                            </tr>
+                          </Fragment>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
-                {payment && (
-                  <form
-                    className="plan-payment-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void action(async () => {
-                        const next = clone(doc);
-                        const allocation = next.cycles
-                          .find((c) => c.id === cycle.id)!
-                          .allocations.find(
-                            (a) => a.memberId === payment.memberId,
-                          )!;
-                        const amountMinor = parseMoney(payment.amount);
-                        if (
-                          amountMinor >
-                          allocation.amountMinor - paidTotal(allocation)
-                        )
-                          throw new Error(
-                            "Payment exceeds this member’s remaining balance.",
-                          );
-                        allocation.payments.push({
-                          id: crypto.randomUUID(),
-                          amountMinor,
-                          date: payment.date,
-                          note: payment.note.trim(),
-                        });
-                        await persist(next);
-                        setPayment(null);
-                      });
-                    }}
-                  >
-                    <h3>
-                      Record payment for{" "}
-                      {
-                        cycle.allocations.find(
-                          (a) => a.memberId === payment.memberId,
-                        )?.name
-                      }
-                    </h3>
-                    <p>
-                      For billing period {cycle.startDate} to{" "}
-                      {cycle.renewalDate}. This receipt will appear in the
-                      member’s personal payment history.
-                    </p>
-                    <div className="plan-fields">
-                      <div>
-                        <label htmlFor="payment-amount">Amount received</label>
-                        <input
-                          id="payment-amount"
-                          required
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={payment.amount}
-                          onChange={(e) =>
-                            setPayment({ ...payment, amount: e.target.value })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="payment-date">Payment date</label>
-                        <input
-                          id="payment-date"
-                          required
-                          type="date"
-                          value={payment.date}
-                          onChange={(e) =>
-                            setPayment({ ...payment, date: e.target.value })
-                          }
-                        />
-                      </div>
-                    </div>
-                    <label htmlFor="payment-reference">
-                      Private reference / note
-                    </label>
-                    <input
-                      id="payment-reference"
-                      maxLength={200}
-                      value={payment.note}
-                      onChange={(e) =>
-                        setPayment({ ...payment, note: e.target.value })
-                      }
-                    />
-                    <div className="plan-actions">
-                      <button
-                        className="plan-button"
-                        disabled={busy}
-                        type="submit"
-                      >
-                        Save payment
-                      </button>
-                      <button type="button" onClick={() => setPayment(null)}>
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                )}
                 <details className="plan-history">
                   <summary>Payment history & corrections</summary>
                   {cycle.allocations.flatMap((a) =>
@@ -1141,9 +1274,48 @@ export function SubscriptionManager() {
           </div>
         </>
       )}
+      {doc && tab === "settings" && (
+        <section className="plan-box plan-danger-zone">
+          <h2>Remove this plan</h2>
+          <p>
+            Deletes this plan, its billing and payment history, and all personal
+            links. Download a backup below first. This does not cancel your
+            YouTube subscription or reverse any payments.
+          </p>
+          <button
+            disabled={busy}
+            onClick={() => {
+              if (
+                prompt(
+                  `Type ${doc.plan.name} to permanently delete this plan and disable every shared link.`,
+                ) !== doc.plan.name
+              )
+                return;
+              void action(async () => {
+                if (!demo)
+                  await api("/api/subscriptions", "DELETE", { revision });
+                setPlans((current) => current.filter((p) => p.id !== planId));
+                setPlanId("");
+                setReports([]);
+                setDoc(null);
+                setRevision(0);
+                setShares([]);
+                setLink("");
+                setPayment(null);
+                setSelected("");
+                setSettings(defaults());
+                setMembersText("");
+                setTab("overview");
+                setMessage("Plan removed. Its personal links no longer work.");
+              });
+            }}
+          >
+            Delete plan permanently
+          </button>
+        </section>
+      )}
       <footer className="plan-footer">
-        A private utility on your domain. Payments are recorded by the manager;
-        this site does not collect money or send reminders automatically.
+        Shared plans · Private manager workspace.
       </footer>
     </main>
   );

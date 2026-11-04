@@ -24,7 +24,7 @@ const personalView = {
 async function createDemo(page: Page) {
   await page.goto("/subscriptions?demo=1");
   await page.getByLabel("Total subscription price").fill("101.00");
-  await page.getByLabel("First billing date").fill("2026-11-01");
+  await page.getByLabel("Billing schedule starts").fill("2026-11-01");
   await page
     .getByLabel("Members — one name per line")
     .fill("Manager\nAlice\nBob");
@@ -102,8 +102,8 @@ test("demo splits every paise, records partial payments, and preserves old bills
   await page
     .getByRole("button", { name: "Plan & members", exact: true })
     .click();
-  await expect(page.getByLabel("First billing date")).toBeDisabled();
-  await expect(page.getByLabel("Billing frequency")).toBeDisabled();
+  await expect(page.getByLabel("Billing schedule starts")).toBeEnabled();
+  await expect(page.getByLabel("Billing frequency")).toBeEnabled();
   await page.getByLabel("Total subscription price").fill("120.00");
   await page
     .getByRole("button", { name: "Save settings", exact: true })
@@ -121,7 +121,9 @@ test("demo splits every paise, records partial payments, and preserves old bills
   ).toContainText("Inactive · history kept");
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await openCycle(page);
-  await expect(page.locator("tbody tr")).toHaveCount(2);
+  await expect(page.locator("tbody tr:not(.plan-inline-receipt)")).toHaveCount(
+    2,
+  );
   await expect(memberRow(page, "Manager").locator("td").nth(1)).toHaveText(
     "₹60.00",
   );
@@ -131,7 +133,7 @@ test("demo splits every paise, records partial payments, and preserves old bills
   await expect(page.getByLabel("View cycle").locator("option")).toHaveCount(2);
 
   await page.getByLabel("View cycle").selectOption(firstCycle);
-  await expect(page.locator("tbody tr")).toHaveCount(3);
+  await expect(page.locator("tbody tr:not(.plan-inline-receipt)")).toHaveCount(3);
   await expect(memberRow(page, "Bob").locator("td").nth(1)).toHaveText(
     "₹33.66",
   );
@@ -268,10 +270,11 @@ test("personal view sends its fragment token only in the authorization header an
     page.getByRole("heading", { name: "YouTube Premium", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("HELLO, ALICE", { exact: true })).toBeVisible();
-  await expect(page.locator(".plan-personal-summary")).toContainText("₹33.67");
+
   await expect(page.locator(".plan-personal-summary")).toContainText("₹23.67");
-  await page.getByRole("button", { name: "Help", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "How to pay" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Help", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "History", exact: true }).click();
   await expect(page.getByText("Manager", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Bob", { exact: true })).toHaveCount(0);
@@ -283,9 +286,9 @@ test("personal view sends its fragment token only in the authorization header an
       name: /Record payment|Save settings|Create link|Revoke/,
     }),
   ).toHaveCount(0);
-  await page.getByText("Payments received", { exact: true }).click();
+
   await expect(page.locator(".plan-member-cycle")).toContainText(
-    "2026-11-02 · ₹10.00",
+    "2 Nov 2026 · ₹10.00",
   );
 
   const downloading = page.waitForEvent("download");
@@ -377,9 +380,9 @@ test("member receipts identify billing month and exact period on mobile", async 
   await page.goto(`/subscriptions/view#${token}`);
   await page.getByRole("button", { name: "History", exact: true }).click();
   const receipts = page.locator(".plan-receipts");
-  await expect(receipts).toContainText("For November 2026");
+  await expect(receipts).toContainText("November 2026");
   await expect(receipts).toContainText("1 Nov 2026 – 1 Dec 2026");
-  await expect(receipts).toContainText("Payment received: 2 Nov 2026");
+  await expect(receipts).toContainText("2 Nov 2026");
   await expect(receipts).toContainText("₹10.00");
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   const href = await page
@@ -437,4 +440,73 @@ test("member join date and past periods stay visible in the statement", async ({
   await expect(
     page.getByLabel("View cycle").locator("option:checked"),
   ).toContainText("2026-11-01");
+});
+
+test("multiple subscription tabs keep their documents separate", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await openCycle(page);
+  await page
+    .getByRole("button", { name: "+ Add subscription", exact: true })
+    .click();
+  await page.getByLabel("Plan name", { exact: true }).fill("Cloud storage");
+  await page.getByLabel("Total subscription price").fill("120");
+  await page.getByLabel("Billing frequency").selectOption("quarterly");
+  await page.getByLabel("Billing schedule starts").fill("2026-11-01");
+  await page.getByLabel("Members — one name per line").fill("Manager\nAlice");
+  await page.getByRole("button", { name: "Create plan", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Cloud storage", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "YouTube Premium", exact: true })
+    .click();
+  await expect(page.getByLabel("View cycle")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Plan & members", exact: true })
+    .click();
+  await page.getByLabel("Billing frequency").selectOption("half-yearly");
+  await page
+    .getByRole("button", { name: "Save settings", exact: true })
+    .click();
+  await expect(page.getByLabel("View cycle")).toContainText("2026-11-01");
+  await page
+    .getByRole("button", { name: "Cloud storage", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "No bills yet.", exact: true }),
+  ).toBeVisible();
+});
+
+test("reported payment waits for opening and delay, without confirming receipt", async ({
+  page,
+}) => {
+  await page.clock.install();
+  let opened = false,
+    reported = false;
+  await page.route("**/api/subscriptions/view", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      if (body.action === "opened") opened = true;
+      if (body.action === "paid") reported = true;
+      await route.fulfill({ json: { reported } });
+    } else await route.fulfill({ json: personalView });
+  });
+  await page.goto(`/subscriptions/view#${token}`);
+  const paidButton = page.getByRole("button", {
+    name: "I’ve paid",
+    exact: true,
+  });
+  await expect(paidButton).toBeDisabled();
+  await page.getByRole("link", { name: "Pay ₹23.67 with UPI" }).click();
+  await expect.poll(() => opened).toBe(true);
+  await expect(page.getByRole("button", { name: /I’ve paid/ })).toBeDisabled();
+  await page.clock.fastForward(11000);
+  await page.getByRole("button", { name: "I’ve paid", exact: true }).click();
+  await expect.poll(() => reported).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "Reported paid · awaiting confirmation" }),
+  ).toBeDisabled();
+  await expect(page.locator(".plan-simple-summary")).toContainText("₹23.67");
 });
