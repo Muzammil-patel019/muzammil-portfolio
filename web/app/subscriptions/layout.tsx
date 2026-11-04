@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./subscriptions.css";
+import "./experience.css";
 export const metadata: Metadata = {
   title: "Shared plan · Subscription tracker",
   description: "Shared subscription billing and payment status.",

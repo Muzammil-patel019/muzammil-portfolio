@@ -574,7 +574,9 @@ test("manager confirmation places excess money into credit and applies it to the
   );
 });
 
-test("group invitation shows first names and submits a private join request", async ({ page }) => {
+test("group invitation shows first names and submits a private join request", async ({
+  page,
+}) => {
   const code = "g".repeat(22);
   let submitted: unknown;
   await page.route("**/api/subscriptions/group", async (route) => {
@@ -582,15 +584,135 @@ test("group invitation shows first names and submits a private join request", as
     if (route.request().method() === "PUT") {
       submitted = route.request().postDataJSON();
       await route.fulfill({ json: { requested: true } });
-    } else await route.fulfill({ json: { name: "Premium friends", members: [{ firstName: "Alice" }, { firstName: "Bob" }] } });
+    } else
+      await route.fulfill({
+        json: {
+          name: "Premium friends",
+          members: [{ firstName: "Alice" }, { firstName: "Bob" }],
+        },
+      });
   });
   const response = await page.goto(`/group/${code}`);
   expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
-  await expect(page.getByRole("heading", { name: "Premium friends" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Premium friends" }),
+  ).toBeVisible();
   await expect(page.locator(".plan-group-members")).toContainText("Alice");
   await page.getByLabel("Your name").fill("New Friend");
   await page.getByLabel("Email for the manager").fill("friend@example.com");
-  await page.getByRole("button", { name: "Request to join", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Request sent" })).toBeVisible();
-  expect(submitted).toEqual({ name: "New Friend", email: "friend@example.com" });
+  await page
+    .getByRole("button", { name: "Request to join", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Request sent" }),
+  ).toBeVisible();
+  expect(submitted).toEqual({
+    name: "New Friend",
+    email: "friend@example.com",
+  });
+});
+
+test("manager can find outstanding people without moving receipt forms away", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await openCycle(page);
+  await page.getByLabel("Find a member").fill("alice");
+  await expect(page.locator("tbody tr:not([hidden])")).toHaveCount(1);
+  await memberRow(page, "Alice")
+    .getByRole("button", { name: "Record payment", exact: true })
+    .click();
+  await page.getByLabel("Amount received").fill("33.67");
+  await page.getByRole("button", { name: "Save payment", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Collection progress" }),
+  ).toContainText("1 of 3 members settled");
+  await page.getByLabel("Payment status").selectOption("unpaid");
+  await expect(
+    page.getByRole("heading", { name: "No matching members" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.locator("tbody tr:not([hidden])")).toHaveCount(3);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await page.screenshot({
+    path: "/tmp/shared-manager-mobile.png",
+    fullPage: true,
+  });
+});
+
+test("member statement filters bills, exports amounts, and survives a temporary refresh error", async ({
+  page,
+}) => {
+  let unavailable = false;
+  await page.route("**/api/subscriptions/view", (route) =>
+    route.fulfill(
+      unavailable
+        ? { status: 503, json: { error: "Temporarily unavailable." } }
+        : {
+            json: {
+              ...personalView,
+              groupMembers: [{ firstName: "Alice" }, { firstName: "Bob" }],
+            },
+          },
+    ),
+  );
+  await page.goto(`/shared/${"c".repeat(22)}`);
+  await expect(page.locator(".plan-payment-review")).toContainText("₹23.67");
+  await expect(page.locator(".plan-group-members")).toContainText("Bob");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await page.screenshot({
+    path: "/tmp/shared-member-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await page.getByRole("button", { name: "Settled 0", exact: true }).click();
+  await expect(page.getByText("No settled bills to show.")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Outstanding 1", exact: true })
+    .click();
+  await expect(page.locator(".plan-member-cycle")).toHaveCount(1);
+  const downloading = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download statement", exact: true })
+    .click();
+  expect(await downloadText(await downloading)).toContain(
+    '"INR","33.67","10.00","23.67","Part paid"',
+  );
+  unavailable = true;
+  await page
+    .getByRole("button", { name: "Refresh status", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "YouTube Premium", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".plan-status")).toContainText(
+    "Temporarily unavailable",
+  );
+});
+
+test("reported payment prevents a second UPI payment while awaiting confirmation", async ({
+  page,
+}) => {
+  await page.route("**/api/subscriptions/view", (route) =>
+    route.fulfill({
+      json: {
+        ...personalView,
+        cycles: [
+          { ...personalView.cycles[0], reportedAt: "2026-11-05T00:00:00Z" },
+        ],
+      },
+    }),
+  );
+  await page.goto(`/shared/${"c".repeat(22)}`);
+  await expect(
+    page.getByRole("link", { name: "Awaiting manager confirmation" }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await expect(
+    page.getByRole("radio", { name: "Quarterly", exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator(".plan-notice")).toContainText(
+    "You don’t need to pay again",
+  );
 });

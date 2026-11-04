@@ -6,6 +6,7 @@ import {
   applyAdvanceCredit,
   type CoverageMonths,
 } from "@/lib/member-billing";
+import { billingLabels } from "@/lib/subscription-statement";
 import { browserClient } from "@/lib/supabase";
 import {
   buildCycle,
@@ -46,6 +47,8 @@ export function SubscriptionManager() {
   const [auth, setAuth] = useState<"checking" | "signedout" | "signedin">(
     demo ? "signedin" : "checking",
   );
+  const [memberSearch, setMemberSearch] = useState("");
+  const [collectionFilter, setCollectionFilter] = useState("all");
   const [planId, setPlanId] = useState("");
   const [plans, setPlans] = useState<{ id: string; name: string }[]>([]);
   const [demoPlans, setDemoPlans] = useState<
@@ -304,6 +307,26 @@ export function SubscriptionManager() {
   const outstanding = (cycle?.totalMinor || 0) - collected;
   const count = doc?.members.filter((m) => m.active).length || 0;
   const due = cycle ? daysUntil(cycle.dueDate) : 0;
+  const reportedMembers = new Set(
+    reports
+      .filter((r) => r.cycle_id === cycle?.id && r.reported_at)
+      .map((r) => r.member_id),
+  );
+  const settledCount =
+    cycle?.allocations.filter((a) => paidTotal(a) >= a.amountMinor).length || 0;
+  const visibleAllocations =
+    cycle?.allocations.filter(
+      (a) =>
+        a.name
+          .toLocaleLowerCase()
+          .includes(memberSearch.trim().toLocaleLowerCase()) &&
+        (collectionFilter === "all" ||
+          (collectionFilter === "pending"
+            ? reportedMembers.has(a.memberId)
+            : collectionFilter === "settled"
+              ? paidTotal(a) >= a.amountMinor
+              : paidTotal(a) < a.amountMinor)),
+    ) || [];
   function reminder(
     name: string,
     amount: number,
@@ -371,6 +394,8 @@ export function SubscriptionManager() {
             aria-pressed={planId === plan.id}
             onClick={() => {
               setLink("");
+              setMemberSearch("");
+              setCollectionFilter("all");
               setPayment(null);
               setReports([]);
               setJoinRequests([]);
@@ -414,7 +439,7 @@ export function SubscriptionManager() {
           <h1>{doc?.plan.name || "Your shared subscription"}</h1>
           <p>
             {doc
-              ? `${count} active people · ${doc.plan.interval === "monthly" ? "Monthly" : "Yearly"} billing`
+              ? `${count} active people · ${billingLabels[doc.plan.interval].label} billing`
               : "Set up once. Share a personal view with each member."}
           </p>
         </div>
@@ -773,9 +798,7 @@ export function SubscriptionManager() {
             <div>
               <span>Current plan price</span>
               <strong>{money(doc.plan.amountMinor, doc.plan.currency)}</strong>
-              <small>
-                Per {doc.plan.interval === "monthly" ? "month" : "year"}
-              </small>
+              <small>Per {billingLabels[doc.plan.interval].period}</small>
             </div>
             <div>
               <span>Collected this cycle</span>
@@ -802,14 +825,42 @@ export function SubscriptionManager() {
               </small>
             </div>
           </section>
+          {cycle && (
+            <section
+              className="plan-collection"
+              aria-label="Collection progress"
+            >
+              <div>
+                <p className="plan-label">COLLECTION PROGRESS</p>
+                <h2>
+                  {settledCount} of {cycle.allocations.length} members settled
+                </h2>
+              </div>
+              <div className="plan-collection-meter">
+                <progress
+                  value={collected}
+                  max={cycle.totalMinor || 1}
+                  aria-label="Amount collected"
+                />
+                <span>
+                  {money(collected, cycle.currency)} of{" "}
+                  {money(cycle.totalMinor, cycle.currency)}
+                </span>
+              </div>
+              {reportedMembers.size > 0 && (
+                <button onClick={() => setCollectionFilter("pending")}>
+                  {reportedMembers.size} to verify →
+                </button>
+              )}
+            </section>
+          )}
           <section className="plan-box">
             <div className="plan-section-head">
               <div>
                 <h2>Billing cycles</h2>
                 <p>
-                  Each cycle keeps its own member list, split and payment
-                  history. If the total won’t divide evenly, the extra cents or
-                  paise are assigned in member order.
+                  Review each person’s balance and record confirmed payments.
+                  Past bills keep their original split.
                 </p>
               </div>
               <button
@@ -956,6 +1007,52 @@ export function SubscriptionManager() {
                     />
                   </label>
                 </div>
+                <div className="plan-member-toolbar">
+                  <label>
+                    Find a member
+                    <input
+                      type="search"
+                      value={memberSearch}
+                      placeholder="Search by name"
+                      onChange={(e) => {
+                        setMemberSearch(e.target.value);
+                        setPayment(null);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Payment status
+                    <select
+                      value={collectionFilter}
+                      onChange={(e) => {
+                        setCollectionFilter(e.target.value);
+                        setPayment(null);
+                      }}
+                    >
+                      <option value="all">All members</option>
+                      <option value="unpaid">Outstanding</option>
+                      <option value="pending">Needs verification</option>
+                      <option value="settled">Settled</option>
+                    </select>
+                  </label>
+                  <span aria-live="polite">
+                    {visibleAllocations.length} of {cycle.allocations.length}{" "}
+                    members
+                  </span>
+                </div>
+                {visibleAllocations.length === 0 && (
+                  <div className="plan-empty">
+                    <h3>No matching members</h3>
+                    <button
+                      onClick={() => {
+                        setMemberSearch("");
+                        setCollectionFilter("all");
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
                 <div className="plan-table-wrap">
                   <table>
                     <thead>
@@ -968,7 +1065,7 @@ export function SubscriptionManager() {
                       </tr>
                     </thead>
                     <tbody>
-                      {cycle.allocations.map((allocation) => {
+                      {visibleAllocations.map((allocation) => {
                         const paid = paidTotal(allocation),
                           balance = allocation.amountMinor - paid;
                         return (
