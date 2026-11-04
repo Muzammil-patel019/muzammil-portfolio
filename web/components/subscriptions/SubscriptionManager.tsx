@@ -63,6 +63,9 @@ export function SubscriptionManager() {
       approved_months?: number;
     }[]
   >([]);
+  const [joinRequests, setJoinRequests] = useState<
+    { id: string; name: string; email: string; created_at: string }[]
+  >([]);
   const [doc, setDoc] = useState<SubscriptionDocument | null>(null),
     [revision, setRevision] = useState(0);
   const [settings, setSettings] = useState<Settings>(defaults),
@@ -170,6 +173,10 @@ export function SubscriptionManager() {
         fillSettings(result.document);
         setSelected(result.document.cycles.at(-1)?.id || "");
       }
+      const joining = result?.id
+        ? await api(`/api/subscriptions/group?planId=${result.id}`)
+        : [];
+      setJoinRequests(joining || []);
       const sharing = await api(
         `/api/subscriptions/share?planId=${result?.id || ""}`,
       );
@@ -214,6 +221,9 @@ export function SubscriptionManager() {
   useEffect(() => {
     if (demo || !planId || auth !== "signedin") return;
     const refreshReports = () => {
+      void api(`/api/subscriptions/group?planId=${planId}`)
+        .then((result) => setJoinRequests(result || []))
+        .catch(() => {});
       void api(`/api/subscriptions/share?planId=${planId}`)
         .then((result) => setReports(result.reports || []))
         .catch(() => {});
@@ -363,6 +373,7 @@ export function SubscriptionManager() {
               setLink("");
               setPayment(null);
               setReports([]);
+              setJoinRequests([]);
               setShares([]);
               if (demo) {
                 const value = demoPlans[plan.id];
@@ -389,6 +400,7 @@ export function SubscriptionManager() {
             setLink("");
             setShares([]);
             setReports([]);
+            setJoinRequests([]);
             setPayment(null);
             setTab("settings");
           }}
@@ -1340,7 +1352,77 @@ export function SubscriptionManager() {
             )}
           </section>
           <section className="plan-box">
-            <h2>Personal member links</h2>
+            <h2>Group invitations</h2>
+            <p>
+              Share the group invite for new join requests. Personal links below
+              contain individual payment history.
+            </p>
+            <button
+              disabled={busy || demo}
+              onClick={() =>
+                void action(async () => {
+                  const result = await api(
+                    "/api/subscriptions/group",
+                    "POST",
+                    {},
+                  );
+                  const url = `${location.origin}/group/${result.code}`;
+                  setLink(url);
+                  await copy(url);
+                })
+              }
+            >
+              Copy group invite
+            </button>
+            {joinRequests.length > 0 && (
+              <div className="plan-join-requests">
+                <h3>Awaiting approval</h3>
+                {joinRequests.map((request) => (
+                  <article key={request.id}>
+                    <div>
+                      <strong>{request.name}</strong>
+                      <p>{request.email}</p>
+                    </div>
+                    <div className="plan-actions">
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void action(async () => {
+                            await api("/api/subscriptions/group", "POST", {
+                              requestId: request.id,
+                              approve: true,
+                            });
+                            await load(planId);
+                            setMessage(
+                              "Member approved. Copy their personal link below and arrange subscription access with them.",
+                            );
+                          })
+                        }
+                      >
+                        Approve {request.name}
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          void action(async () => {
+                            await api("/api/subscriptions/group", "POST", {
+                              requestId: request.id,
+                              approve: false,
+                            });
+                            setJoinRequests((current) =>
+                              current.filter((r) => r.id !== request.id),
+                            );
+                          })
+                        }
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+            <h2 style={{ marginTop: 28 }}>Personal member links</h2>
             <p>
               Click a name to copy their personal link. Saved links can be
               copied again anytime.
@@ -1452,6 +1534,7 @@ export function SubscriptionManager() {
                 setPlans((current) => current.filter((p) => p.id !== planId));
                 setPlanId("");
                 setReports([]);
+                setJoinRequests([]);
                 setDoc(null);
                 setRevision(0);
                 setShares([]);

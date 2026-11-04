@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { daysUntil, money } from "@/lib/subscriptions";
+import { GroupMembers } from "./GroupMembers";
+import { CoverageCards } from "./CoverageCards";
 import { PaymentActivity } from "./PaymentActivity";
 import {
   coverageOptions,
@@ -26,6 +28,7 @@ type MemberCycle = {
   payments: { amountMinor: number; date: string; sourceCreditId?: string }[];
 };
 type View = {
+  groupMembers?: { firstName: string }[];
   credits?: {
     id: string;
     amountMinor: number;
@@ -177,26 +180,18 @@ function PaymentLink({
   }
   return (
     <div className="plan-upi-payment">
-      <label className="plan-coverage-label">
-        Payment coverage
-        <select
-          aria-label="Payment coverage"
-          value={months}
-          disabled={busy || reported || !!cycle.reportedAt}
-          onChange={(e) => {
-            setMonths(+e.target.value as CoverageMonths);
-            setOpenedAt(0);
-            setSeconds(0);
-            setStatus("");
-          }}
-        >
-          {coverageOptions.map((option) => (
-            <option key={option.months} value={option.months}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <CoverageCards
+        cycle={cycle}
+        value={months}
+        creditMinor={creditMinor}
+        disabled={busy || reported || !!cycle.reportedAt}
+        onChange={(value) => {
+          setMonths(value);
+          setOpenedAt(0);
+          setSeconds(0);
+          setStatus("");
+        }}
+      />
       <p className="plan-coverage-dates">
         {displayDate(quote.startDate)} – {displayDate(quote.endDate)}
       </p>
@@ -425,6 +420,7 @@ export function SubscriptionViewer({
             </button>
           </nav>
           <div hidden={activeTab !== "overview"}>
+            {view.groupMembers && <GroupMembers members={view.groupMembers} />}
             {cycles.some(
               (c) => c.id !== latest?.id && paid(c) < c.amountMinor,
             ) && (

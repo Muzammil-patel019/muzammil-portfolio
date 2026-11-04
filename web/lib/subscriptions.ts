@@ -208,6 +208,7 @@ export type SubscriptionCycle = SubscriptionDocument["cycles"][number];
 export type SubscriptionAllocation = SubscriptionCycle["allocations"][number];
 export type SubscriptionPayment = SubscriptionAllocation["payments"][number];
 export type SharedSubscription = {
+  groupMembers?:{firstName:string}[];
   credits?: Array<
     Omit<NonNullable<SubscriptionDocument["credits"]>[number], "memberId">
   >;

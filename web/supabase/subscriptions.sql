@@ -173,6 +173,7 @@ language sql stable security definer set search_path = '' as $$
       'upiId', p.document->'plan'->>'upiId', 'payeeName', p.document->'plan'->>'payeeName'
     ),
     'member', jsonb_strip_nulls(jsonb_build_object('id', m.value->>'id', 'name', m.value->>'name', 'joinedDate', m.value->>'joinedDate', 'preferredMonths',s.preferred_months)),
+    'groupMembers', coalesce((select jsonb_agg(jsonb_build_object('firstName',split_part(regexp_replace(btrim(gm.value->>'name'),'[[:space:]]+',' ','g'),' ',1))) from jsonb_array_elements(p.document->'members') gm(value) where gm.value->>'active'='true'),'[]'::jsonb),
     'credits', coalesce((select jsonb_agg(jsonb_build_object('id',credit.value->>'id','amountMinor',credit.value->'amountMinor','remainingMinor',credit.value->'remainingMinor','currency',credit.value->>'currency','date',credit.value->>'date','startDate',credit.value->>'startDate','endDate',credit.value->>'endDate')) from jsonb_array_elements(coalesce(p.document->'credits','[]'::jsonb)) credit(value) where credit.value->>'memberId'=s.member_id::text),'[]'::jsonb),
     'cycles', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -204,3 +205,52 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.get_subscription_share(text) from public;
 grant execute on function public.get_subscription_share(text) to anon, authenticated;
+
+-- Private group invitations reveal first names only; join requests require owner approval.
+alter table public.subscription_plans add column if not exists group_code text unique check(group_code is null or group_code ~ '^[A-Za-z0-9_-]{22}$');
+alter table public.subscription_plans add column if not exists group_hash text unique check(group_hash is null or group_hash ~ '^[0-9a-f]{64}$');
+create table if not exists public.subscription_join_requests(
+ id uuid primary key default gen_random_uuid(),plan_id uuid not null,owner_id uuid not null,
+ name text not null check(length(name) between 1 and 80),email text not null check(length(email) between 3 and 254),
+ status text not null default 'pending' check(status in('pending','approved','declined')),member_id uuid,created_at timestamptz not null default now(),
+ unique(plan_id,email),foreign key(plan_id,owner_id) references public.subscription_plans(id,owner_id) on delete cascade
+);
+alter table public.subscription_join_requests enable row level security;
+drop policy if exists "join request owner" on public.subscription_join_requests;
+create policy "join request owner" on public.subscription_join_requests for all to authenticated using(owner_id=auth.uid() and public.is_resume_admin()) with check(owner_id=auth.uid() and public.is_resume_admin());
+revoke all on public.subscription_join_requests from public,anon,authenticated;
+grant select,update on public.subscription_join_requests to authenticated;
+create or replace function public.get_subscription_group(invite_hash text) returns jsonb language sql stable security definer set search_path='' as $$
+ select jsonb_build_object('name',p.document->'plan'->>'name','members',coalesce((select jsonb_agg(jsonb_build_object('firstName',split_part(regexp_replace(btrim(m.value->>'name'),'[[:space:]]+',' ','g'),' ',1))) from jsonb_array_elements(p.document->'members') m(value) where m.value->>'active'='true'),'[]'::jsonb))
+ from public.subscription_plans p where p.group_hash=$1 and $1 ~ '^[0-9a-f]{64}$' and exists(select 1 from public.resume_admins where user_id=p.owner_id) limit 1;
+$$;
+revoke all on function public.get_subscription_group(text) from public;
+grant execute on function public.get_subscription_group(text) to anon,authenticated;
+create or replace function public.request_subscription_join(invite_hash text,request_name text,request_email text) returns boolean language plpgsql security definer set search_path='' as $$
+declare plan public.subscription_plans;
+begin
+ if length(btrim($2)) not between 1 and 80 or length($3)>254 or $3 !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'Enter a valid name and email';end if;
+ select p.* into plan from public.subscription_plans p where p.group_hash=$1 and exists(select 1 from public.resume_admins where user_id=p.owner_id) for update;
+ if plan.id is null then raise exception 'Invalid invitation';end if;
+ if (select count(*) from public.subscription_join_requests where plan_id=plan.id and status='pending')>=50 then raise exception 'This group is not accepting more requests right now';end if;
+ insert into public.subscription_join_requests(plan_id,owner_id,name,email) values(plan.id,plan.owner_id,btrim($2),lower(btrim($3))) on conflict(plan_id,email) do nothing;
+ return true;
+end $$;
+revoke all on function public.request_subscription_join(text,text,text) from public;
+grant execute on function public.request_subscription_join(text,text,text) to anon,authenticated;
+create or replace function public.review_subscription_join(request_id uuid,approve boolean) returns uuid language plpgsql security invoker set search_path='' as $$
+declare request public.subscription_join_requests;plan public.subscription_plans;new_member uuid;
+begin
+ select r.* into request from public.subscription_join_requests r where r.id=$1 and r.owner_id=auth.uid() for update;
+ if request.id is null or request.status<>'pending' then raise exception 'Request changed or is unavailable';end if;
+ if not $2 then update public.subscription_join_requests set status='declined' where id=$1;return null;end if;
+ select p.* into plan from public.subscription_plans p where p.id=request.plan_id and p.owner_id=auth.uid() for update;
+ if plan.id is null or jsonb_array_length(plan.document->'members')>=50 then raise exception 'Member limit reached';end if;
+ new_member=gen_random_uuid();
+ update public.subscription_plans set document=jsonb_set(document,'{members}',(document->'members')||jsonb_build_array(jsonb_build_object('id',new_member,'name',request.name,'active',true,'joinedDate',to_char(now() at time zone 'Asia/Kolkata','YYYY-MM-DD')))),revision=revision+1 where id=plan.id and owner_id=auth.uid();
+ if not found then raise exception 'Not allowed';end if;
+ update public.subscription_join_requests set status='approved',member_id=new_member where id=$1;
+ return new_member;
+end $$;
+revoke all on function public.review_subscription_join(uuid,boolean) from public,anon;
+grant execute on function public.review_subscription_join(uuid,boolean) to authenticated;

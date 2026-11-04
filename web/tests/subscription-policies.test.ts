@@ -251,6 +251,7 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
       0,
     );
     const expected: SharedSubscription = {
+      groupMembers: [{ firstName: "Alice" }, { firstName: "Bob" }],
       credits: [],
       plan: {
         name: "Premium group",
@@ -571,6 +572,118 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
         )
       ).rows.length,
       1,
+    );
+    const inviteHash = hash("group-invitation");
+    await asUser(
+      "authenticated",
+      owner,
+      "update public.subscription_plans set group_hash=$2 where id=$1",
+      [firstPlan, inviteHash],
+    );
+    const group = await asUser(
+      "anon",
+      "",
+      "select public.get_subscription_group($1) as result",
+      [inviteHash],
+    );
+    assert.deepEqual((group.rows[0] as { result: unknown }).result, {
+      name: "Service A",
+      members: [{ firstName: "Alice" }, { firstName: "Bob" }],
+    });
+    await assert.rejects(
+      asUser("anon", "", "select * from public.subscription_join_requests"),
+    );
+    await assert.rejects(
+      asUser(
+        "anon",
+        "",
+        "select public.request_subscription_join($1,'New Friend','friend@example.com')",
+        [hash("invalid")],
+      ),
+    );
+    const before = await asUser(
+      "authenticated",
+      owner,
+      "select document,revision from public.subscription_plans where id=$1",
+      [firstPlan],
+    );
+    await asUser(
+      "anon",
+      "",
+      "select public.request_subscription_join($1,'New Friend','friend@example.com')",
+      [inviteHash],
+    );
+    await asUser(
+      "anon",
+      "",
+      "select public.request_subscription_join($1,'New Friend','friend@example.com')",
+      [inviteHash],
+    );
+    const requests = await asUser(
+      "authenticated",
+      owner,
+      "select id from public.subscription_join_requests where plan_id=$1",
+      [firstPlan],
+    );
+    assert.equal(requests.rows.length, 1);
+    const requestId = (requests.rows[0] as { id: string }).id;
+    const pending = await asUser(
+      "authenticated",
+      owner,
+      "select document,revision from public.subscription_plans where id=$1",
+      [firstPlan],
+    );
+    assert.deepEqual(pending.rows, before.rows);
+    await assert.rejects(
+      asUser("anon", "", "select public.review_subscription_join($1,true)", [
+        requestId,
+      ]),
+    );
+    await assert.rejects(
+      asUser(
+        "authenticated",
+        otherOwner,
+        "select public.review_subscription_join($1,true)",
+        [requestId],
+      ),
+    );
+    await asUser(
+      "authenticated",
+      owner,
+      "select public.review_subscription_join($1,true)",
+      [requestId],
+    );
+    const after = await asUser(
+      "authenticated",
+      owner,
+      "select document,revision from public.subscription_plans where id=$1",
+      [firstPlan],
+    );
+    const old = before.rows[0] as {
+      document: SubscriptionDocument;
+      revision: number;
+    };
+    const approved = after.rows[0] as {
+      document: SubscriptionDocument;
+      revision: number;
+    };
+    assert.equal(approved.revision, old.revision + 1);
+    assert.equal(approved.document.members.at(-1)?.name, "New Friend");
+    assert.deepEqual(approved.document.cycles, old.document.cycles);
+    const publicGroup = await asUser(
+      "anon",
+      "",
+      "select public.get_subscription_group($1) as result",
+      [inviteHash],
+    );
+    assert.ok(!JSON.stringify(publicGroup.rows).includes("friend@example.com"));
+    await assert.rejects(
+      asUser(
+        "authenticated",
+        owner,
+        "select public.review_subscription_join($1,true)",
+        [requestId],
+      ),
     );
     await asUser(
       "authenticated",

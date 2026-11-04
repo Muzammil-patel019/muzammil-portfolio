@@ -527,7 +527,7 @@ test("short branded links support coverage requests and confirmed-payment activi
   });
   const response = await page.goto(`/shared/${code}`);
   expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
-  await page.getByLabel("Payment coverage", { exact: true }).selectOption("3");
+  await page.getByRole("radio", { name: "Quarterly", exact: true }).check();
   await expect(
     page.getByRole("link", { name: "Pay ₹91.01 with UPI" }),
   ).toBeVisible();
@@ -572,4 +572,25 @@ test("manager confirmation places excess money into credit and applies it to the
   await expect(memberRow(page, "Alice").locator("td").nth(3)).toHaveText(
     "₹0.00",
   );
+});
+
+test("group invitation shows first names and submits a private join request", async ({ page }) => {
+  const code = "g".repeat(22);
+  let submitted: unknown;
+  await page.route("**/api/subscriptions/group", async (route) => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${code}`);
+    if (route.request().method() === "PUT") {
+      submitted = route.request().postDataJSON();
+      await route.fulfill({ json: { requested: true } });
+    } else await route.fulfill({ json: { name: "Premium friends", members: [{ firstName: "Alice" }, { firstName: "Bob" }] } });
+  });
+  const response = await page.goto(`/group/${code}`);
+  expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
+  await expect(page.getByRole("heading", { name: "Premium friends" })).toBeVisible();
+  await expect(page.locator(".plan-group-members")).toContainText("Alice");
+  await page.getByLabel("Your name").fill("New Friend");
+  await page.getByLabel("Email for the manager").fill("friend@example.com");
+  await page.getByRole("button", { name: "Request to join", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Request sent" })).toBeVisible();
+  expect(submitted).toEqual({ name: "New Friend", email: "friend@example.com" });
 });
