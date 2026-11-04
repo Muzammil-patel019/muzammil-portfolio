@@ -132,3 +132,8 @@ test("backfilled periods never advance the future billing schedule", () => {
   assert.equal(next.startDate, "2026-11-01");
   assert.equal(next.renewalDate, "2026-12-01");
 });
+
+test("quarterly and half-yearly schedules keep calendar boundaries", () => {
+  assert.deepEqual(cycleDates("2026-01-31", "quarterly", 0), { startDate: "2026-01-31", renewalDate: "2026-04-30" });
+  assert.deepEqual(cycleDates("2026-01-31", "half-yearly", 0), { startDate: "2026-01-31", renewalDate: "2026-07-31" });
+});

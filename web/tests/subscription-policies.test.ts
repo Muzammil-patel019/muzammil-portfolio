@@ -97,5 +97,24 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
     assert.equal((await asUser("authenticated", owner, "delete from public.subscription_plans where owner_id=$1 and revision=2 returning owner_id", [owner])).rows.length, 1);
     assert.equal(await view(rotatedHash), null);
     assert.equal((await db.query("select * from public.subscription_shares where owner_id=$1", [owner])).rows.length, 0);
+    const firstPlan = "44444444-4444-4444-8444-444444444444", secondPlan = "55555555-5555-4555-8555-555555555555";
+    const docA=structuredClone(document), docB=structuredClone(document); docA.plan.name="Service A"; docB.plan.name="Service B";
+    await asUser("authenticated",owner,"insert into public.subscription_plans(id,owner_id,document) values($1,$2,$3),($4,$2,$5)",[firstPlan,owner,JSON.stringify(docA),secondPlan,JSON.stringify(docB)]);
+    await asUser("authenticated",owner,"insert into public.subscription_shares(plan_id,owner_id,member_id,token_hash) values($1,$2,$3,$4),($5,$2,$6,$7)",[firstPlan,owner,alice,hash("plan-a"),secondPlan,bob,hash("plan-b")]);
+    assert.equal((await view(hash("plan-a")))?.plan.name,"Service A");
+    assert.equal((await view(hash("plan-b")))?.plan.name,"Service B");
+    await assert.rejects(asUser("anon","","select * from public.subscription_payment_reports"));
+    await asUser("anon","","select public.report_subscription_payment($1,$2,'opened')",[hash("plan-a"),cycle.id]);
+    await assert.rejects(asUser("anon","","select public.report_subscription_payment($1,$2,'paid')",[hash("plan-a"),cycle.id]));
+    await db.query("update public.subscription_payment_reports set opened_at=now()-interval '11 seconds' where plan_id=$1",[firstPlan]);
+    await asUser("anon","","select public.report_subscription_payment($1,$2,'paid')",[hash("plan-a"),cycle.id]);
+    assert.equal((await asUser("authenticated",owner,"select * from public.subscription_payment_reports where reported_at is not null")).rows.length,1);
+    assert.equal((await asUser("authenticated",otherOwner,"select * from public.subscription_payment_reports")).rows.length,0);
+    assert.deepEqual((await view(hash("plan-a")))?.cycles[0].payments,[{amountMinor:5000,date:"2026-11-02"}]);
+    await assert.rejects(asUser("anon","","select public.report_subscription_payment($1,$2,'paid')",[hash("unknown-token"),cycle.id]));
+    await asUser("authenticated",owner,"delete from public.subscription_plans where id=$1",[firstPlan]);
+    assert.equal(await view(hash("plan-a")),null);
+    assert.equal((await view(hash("plan-b")))?.plan.name,"Service B");
+
   } finally { await db.close(); }
 });

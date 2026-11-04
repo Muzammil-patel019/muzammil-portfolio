@@ -9,10 +9,17 @@ type MemberCycle = {
   renewalDate: string;
   currency: "INR" | "USD" | "EUR" | "GBP";
   amountMinor: number;
+  reportedAt?: string;
   payments: { amountMinor: number; date: string }[];
 };
 type View = {
-  plan: { name: string; paymentNote: string; interval: string };
+  plan: {
+    name: string;
+    paymentNote: string;
+    interval: string;
+    upiId?: string;
+    payeeName?: string;
+  };
   member: { id: string; name: string; joinedDate?: string };
   cycles: MemberCycle[];
 };
@@ -74,33 +81,113 @@ function calendar(cycle: MemberCycle, name: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-function PaymentLink({ cycle, name }: { cycle: MemberCycle; name: string }) {
-  const payment = subscriptionUpiPayment(name, cycle);
-  const [copied, setCopied] = useState("");
-  if (!payment) return null;
+function PaymentLink({
+  cycle,
+  plan,
+  onReported,
+}: {
+  cycle: MemberCycle;
+  plan: View["plan"];
+  onReported: () => void;
+}) {
+  const payment = subscriptionUpiPayment(plan.name, cycle, plan);
+  const [openedAt, setOpenedAt] = useState(0),
+    [seconds, setSeconds] = useState(0),
+    [reported, setReported] = useState(!!cycle.reportedAt),
+    [busy, setBusy] = useState(false),
+    [status, setStatus] = useState("");
+  useEffect(() => {
+    if (!openedAt) return;
+    const tick = () =>
+      setSeconds(Math.max(0, 10 - Math.floor((Date.now() - openedAt) / 1000)));
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => clearInterval(timer);
+  }, [openedAt]);
+  async function send(action: "opened" | "paid") {
+    const response = await fetch("/api/subscriptions/view", {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${location.hash.slice(1)}`,
+      },
+      body: JSON.stringify({ cycleId: cycle.id, action }),
+      referrerPolicy: "no-referrer",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Please try again.");
+    return result;
+  }
+  if (!payment) return <p>Payment details will be added by your manager.</p>;
   return (
     <div className="plan-upi-payment">
-      <a className="plan-button" href={payment.href}>
-        Pay {money(cycle.amountMinor - paid(cycle), cycle.currency)} with UPI
-      </a>
-      <p>
-        <strong>UPI ID:</strong> {payment.upiId}
-        <br />
-        <strong>Payment note:</strong> {payment.note}
-      </p>
-      <button
-        onClick={async () => {
+      <a
+        className="plan-button"
+        href={payment.href}
+        onClick={async (e) => {
+          e.preventDefault();
+          if (busy) return;
+          setBusy(true);
+          setStatus("");
+          window.open(payment.href, "_blank", "noopener,noreferrer");
           try {
-            await navigator.clipboard.writeText(payment.upiId);
-            setCopied("UPI ID copied.");
-          } catch {
-            setCopied("Select and copy the UPI ID shown above.");
+            await send("opened");
+            setOpenedAt(Date.now());
+            setSeconds(10);
+          } catch (error) {
+            setStatus((error as Error).message);
+          } finally {
+            setBusy(false);
           }
         }}
       >
-        Copy UPI ID
+        Pay {money(cycle.amountMinor - paid(cycle), cycle.currency)} with UPI
+      </a>
+      <button
+        className="plan-report-paid"
+        disabled={
+          busy || reported || !!cycle.reportedAt || !openedAt || seconds > 0
+        }
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await send("paid");
+            setReported(true);
+            setStatus("Sent to your manager for confirmation.");
+            onReported();
+          } catch (error) {
+            setStatus((error as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {reported || cycle.reportedAt
+          ? "Reported paid · awaiting confirmation"
+          : seconds > 0
+            ? `I’ve paid · ${seconds}s`
+            : "I’ve paid"}
       </button>
-      <span role="status">{copied}</span>
+      <p className="plan-payee">
+        {payment.upiId}{" "}
+        <button
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(payment.upiId);
+              setStatus("UPI ID copied.");
+            } catch {
+              setStatus("Select and copy the UPI ID above.");
+            }
+          }}
+        >
+          Copy UPI ID
+        </button>
+      </p>
+      <small>
+        Report after completing the payment. Your manager confirms receipt.
+      </small>
+      <span role="status">{status}</span>
     </div>
   );
 }
@@ -109,7 +196,7 @@ export function SubscriptionViewer() {
     [message, setMessage] = useState("Opening your personal plan…"),
     [busy, setBusy] = useState(false),
     [updated, setUpdated] = useState("");
-  const [activeTab, setActiveTab] = useState<"overview" | "history" | "help">(
+  const [activeTab, setActiveTab] = useState<"overview" | "history">(
     "overview",
   );
   async function refresh() {
@@ -169,7 +256,7 @@ export function SubscriptionViewer() {
         <span className="plan-brand">
           Shared<span>plan.</span>
         </span>
-        <span className="plan-label">PERSONAL VIEW · READ ONLY</span>
+        <span className="plan-label">YOUR MEMBERSHIP</span>
       </header>
       <p className="plan-status" role="status">
         {message}
@@ -193,19 +280,14 @@ export function SubscriptionViewer() {
                 HELLO, {view.member.name.toUpperCase()}
               </p>
               <h1>{view.plan.name}</h1>
-              <p>
-                Your personal subscription statement. See what’s covered, what’s
-                paid, and what’s next.
-              </p>
+              <p>Your subscription, simply.</p>
             </div>
             <button disabled={busy} onClick={() => void refresh()}>
               {busy ? "Refreshing…" : "Refresh status"}
             </button>
           </div>
           <div className="plan-member-meta">
-            <span>
-              {view.plan.interval === "yearly" ? "Yearly" : "Monthly"} plan
-            </span>
+            <span>{view.plan.interval} plan</span>
             <span>
               {view.member.joinedDate
                 ? `Member since ${displayDate(view.member.joinedDate)}`
@@ -227,40 +309,36 @@ export function SubscriptionViewer() {
             >
               History
             </button>
-            <button
-              aria-pressed={activeTab === "help"}
-              onClick={() => setActiveTab("help")}
-            >
-              Help
-            </button>
           </nav>
           <div hidden={activeTab !== "overview"}>
+            {cycles.some(
+              (c) => c.id !== latest?.id && paid(c) < c.amountMinor,
+            ) && (
+              <button
+                className="plan-older-balance"
+                onClick={() => setActiveTab("history")}
+              >
+                Earlier balance outstanding · View history →
+              </button>
+            )}
             {latest ? (
-              <section className="plan-personal-summary">
-                <div>
-                  <span className="plan-label">
-                    {displayDate(latest.startDate, true).toUpperCase()} · YOUR
-                    SHARE
-                  </span>
-                  <strong>{money(latest.amountMinor, latest.currency)}</strong>
-                  <p>
-                    {displayDate(latest.startDate)} to{" "}
-                    {displayDate(latest.renewalDate)}
-                  </p>
-                </div>
-                <div>
-                  <span className="plan-label">REMAINING TO PAY</span>
-                  <strong>
-                    {money(latest.amountMinor - paid(latest), latest.currency)}
-                  </strong>
-                  <span
-                    className={`plan-badge ${paid(latest) === latest.amountMinor ? "settled" : ""}`}
-                  >
-                    {paid(latest) === latest.amountMinor
-                      ? "You’re settled"
-                      : countdown(latest.dueDate)}
-                  </span>
-                </div>
+              <section className="plan-personal-summary plan-simple-summary">
+                <span className="plan-label">
+                  {displayDate(latest.startDate, true)}
+                </span>
+                <span className="plan-label">AMOUNT DUE</span>
+                <strong>
+                  {money(latest.amountMinor - paid(latest), latest.currency)}
+                </strong>
+                <span>
+                  {paid(latest) === latest.amountMinor
+                    ? "Paid in full"
+                    : countdown(latest.dueDate)}
+                </span>
+                <p>
+                  {displayDate(latest.startDate)} –{" "}
+                  {displayDate(latest.renewalDate)}
+                </p>
               </section>
             ) : (
               <div className="plan-box plan-empty">
@@ -271,39 +349,25 @@ export function SubscriptionViewer() {
               </div>
             )}
             {latest && (
-              <div className="plan-date-strip">
-                <div>
-                  <span>Payment due</span>
-                  <strong>{latest.dueDate}</strong>
-                </div>
-                <div>
-                  <span>Subscription renews</span>
-                  <strong>{latest.renewalDate}</strong>
-                </div>
-                <div>
-                  <span>Days until this renewal</span>
-                  <strong>{Math.max(0, daysUntil(latest.renewalDate))}</strong>
-                </div>
-              </div>
+              <p className="plan-renewal-line">
+                Renews {displayDate(latest.renewalDate)} · Your share{" "}
+                {money(latest.amountMinor, latest.currency)}
+              </p>
             )}
-            {latest && subscriptionUpiPayment(view.plan.name, latest) && (
-              <section className="plan-box">
-                <h2>Pay your share</h2>
-                <PaymentLink cycle={latest} name={view.plan.name} />
-              </section>
-            )}
+            {latest &&
+              subscriptionUpiPayment(view.plan.name, latest, view.plan) && (
+                <section className="plan-box">
+                  <h2>Pay your share</h2>
+                  <PaymentLink
+                    key={latest.id}
+                    cycle={latest}
+                    plan={view.plan}
+                    onReported={() => void refresh()}
+                  />
+                </section>
+              )}
           </div>
-          {activeTab === "help" && view.plan.paymentNote && (
-            <section className="plan-box">
-              <h2>How to pay</h2>
-              <p className="plan-note">{view.plan.paymentNote}</p>
-              <small>
-                Send payment outside this site, then let your manager know.
-                They’ll update the record here.
-              </small>
-            </section>
-          )}
-          {cycles.length > 0 && activeTab !== "help" && (
+          {cycles.length > 0 && activeTab === "history" && (
             <section className="plan-box plan-chart">
               <div className="plan-section-head">
                 <div>
@@ -341,45 +405,12 @@ export function SubscriptionViewer() {
               </div>
             </section>
           )}
-          <div hidden={activeTab !== "history"}>
-            <section className="plan-box plan-receipts">
-              <p className="plan-label">YOUR RECORD</p>
-              <h2>Payment history</h2>
-              <p>
-                Receipts confirmed by your manager, with the billing period each
-                payment covers.
-              </p>
-              {cycles.every((c) => c.payments.length === 0) ? (
-                <p>
-                  No payments confirmed yet. After you pay, your manager will
-                  verify receipt and record it here.
-                </p>
-              ) : (
-                <ol className="plan-receipt-list">
-                  {cycles.flatMap((cycle) =>
-                    cycle.payments.map((payment, i) => (
-                      <li key={`${cycle.id}-${i}`}>
-                        <div>
-                          <strong>
-                            {money(payment.amountMinor, cycle.currency)}
-                          </strong>
-                          <span className="plan-badge settled">Received</span>
-                        </div>
-                        <h3>For {displayDate(cycle.startDate, true)}</h3>
-                        <p>
-                          Billing period: {displayDate(cycle.startDate)} –{" "}
-                          {displayDate(cycle.renewalDate)}
-                          <br />
-                          Payment received: {displayDate(payment.date)}
-                        </p>
-                      </li>
-                    )),
-                  )}
-                </ol>
-              )}
-            </section>
+          <div
+            className="plan-history-panel plan-receipts"
+            hidden={activeTab !== "history"}
+          >
             <section className="plan-box">
-              <h2>Your billing history</h2>
+              <h2>Payment history</h2>
               <p>
                 Earlier unpaid balances stay visible here. Each bill is tracked
                 separately.
@@ -420,14 +451,20 @@ export function SubscriptionViewer() {
                       <ul>
                         {cycle.payments.map((p, i) => (
                           <li key={i}>
-                            {p.date} · {money(p.amountMinor, cycle.currency)}
+                            {displayDate(p.date)} ·{" "}
+                            {money(p.amountMinor, cycle.currency)}
                           </li>
                         ))}
                       </ul>
                     </details>
                   )}
                   {cycle.id !== latest?.id && (
-                    <PaymentLink cycle={cycle} name={view.plan.name} />
+                    <PaymentLink
+                      key={cycle.id}
+                      cycle={cycle}
+                      plan={view.plan}
+                      onReported={() => void refresh()}
+                    />
                   )}
                   {paid(cycle) < cycle.amountMinor && (
                     <button onClick={() => calendar(cycle, view.plan.name)}>
@@ -438,36 +475,6 @@ export function SubscriptionViewer() {
               ))}
             </section>
           </div>
-          <section hidden={activeTab !== "help"} className="plan-box plan-help">
-            <h2>Help</h2>
-            <p>
-              Choose PhonePe when your phone asks which UPI app to open. Check
-              the recipient in the app before approving. On a computer, copy the
-              UPI ID and pay from your phone.
-            </p>
-            <details>
-              <summary>I’ve paid. Why is a balance still showing?</summary>
-              <p>
-                Your manager confirms incoming payments in PhonePe or their bank
-                before recording them. Use Refresh status after they confirm.
-              </p>
-            </details>
-            <details>
-              <summary>What does each payment cover?</summary>
-              <p>
-                Every receipt belongs to the billing period shown above it.
-                Partial payments reduce that period’s balance; older unpaid
-                periods remain separate.
-              </p>
-            </details>
-            <details>
-              <summary>Will I be charged automatically?</summary>
-              <p>
-                No. The payment button fills in a UPI request. You choose an app
-                and approve each payment yourself.
-              </p>
-            </details>
-          </section>
           <p className="plan-fine-print">
             Updated {updated} · All dates in IST
           </p>

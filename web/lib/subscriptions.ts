@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const currencies = ["INR", "USD", "EUR", "GBP"] as const;
 export type SubscriptionCurrency = (typeof currencies)[number];
-export type SubscriptionInterval = "monthly" | "yearly";
+export type SubscriptionInterval =
+  "monthly" | "quarterly" | "half-yearly" | "yearly";
 const maxAmount = 100_000_000;
 const amount = z.number().int().nonnegative().max(maxAmount);
 const positiveAmount = amount.positive();
@@ -112,9 +113,16 @@ export const documentSchema = z
         name: nameSchema,
         currency: currencySchema,
         amountMinor: positiveAmount,
-        interval: z.enum(["monthly", "yearly"]),
+        interval: z.enum(["monthly", "quarterly", "half-yearly", "yearly"]),
         anchorDate: dateSchema,
         paymentNote: z.string().trim().max(1000),
+        upiId: z
+          .string()
+          .trim()
+          .regex(/^[a-zA-Z0-9._-]{2,256}@[a-zA-Z0-9.-]{2,64}$/)
+          .or(z.literal(""))
+          .optional(),
+        payeeName: z.string().trim().max(80).optional(),
       })
       .strict(),
     members: z
@@ -217,7 +225,9 @@ export function cycleDates(
 ) {
   const original = dateValue(anchor);
   if (
-    (interval !== "monthly" && interval !== "yearly") ||
+    !(["monthly", "quarterly", "half-yearly", "yearly"] as string[]).includes(
+      interval,
+    ) ||
     !Number.isInteger(index) ||
     index < 0 ||
     index > 1200
@@ -225,7 +235,9 @@ export function cycleDates(
     throw new Error("Invalid billing cycle.");
   const boundary = (offset: number) => {
     const month =
-      original.getUTCMonth() + offset * (interval === "yearly" ? 12 : 1);
+      original.getUTCMonth() +
+      offset *
+        { monthly: 1, quarterly: 3, "half-yearly": 6, yearly: 12 }[interval];
     const first = new Date(Date.UTC(original.getUTCFullYear(), month, 1));
     const lastDay = new Date(
       Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0),

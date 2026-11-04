@@ -30,13 +30,32 @@ export async function GET(request: NextRequest) {
     const { data, error } = await db
       .from("subscription_shares")
       .select("member_id,created_at")
-      .eq("owner_id", user.id);
+      .eq("owner_id", user.id)
+      .eq(
+        "plan_id",
+        request.nextUrl.searchParams.get("planId") ||
+          "00000000-0000-0000-0000-000000000000",
+      );
     if (error) throw error;
+    const { data: reports, error: reportsError } = await db
+      .from("subscription_payment_reports")
+      .select("member_id,cycle_id,reported_at")
+      .eq("owner_id", user.id)
+      .eq(
+        "plan_id",
+        request.nextUrl.searchParams.get("planId") ||
+          "00000000-0000-0000-0000-000000000000",
+      )
+      .not("reported_at", "is", null);
+    if (reportsError) throw reportsError;
     return NextResponse.json(
-      (data ?? []).map((share) => ({
-        memberId: share.member_id,
-        createdAt: share.created_at,
-      })),
+      {
+        reports: reports || [],
+        shares: (data ?? []).map((share) => ({
+          memberId: share.member_id,
+          createdAt: share.created_at,
+        })),
+      },
       { headers },
     );
   } catch (error) {
@@ -49,6 +68,7 @@ export async function POST(request: NextRequest) {
     const { db, user } = await owner(request);
     const parsed = z
       .object({
+        planId: z.uuid(),
         memberId: z.uuid().transform((value) => value.toLowerCase()),
         revoke: z.boolean().optional(),
         replace: z.boolean().optional(),
@@ -60,13 +80,14 @@ export async function POST(request: NextRequest) {
         { error: "Choose a valid member." },
         { status: 400, headers },
       );
-    const { memberId, revoke, replace } = parsed.data;
+    const { memberId, revoke, replace, planId } = parsed.data;
     if (revoke) {
       const { error } = await db
         .from("subscription_shares")
         .delete()
         .eq("owner_id", user.id)
-        .eq("member_id", memberId);
+        .eq("member_id", memberId)
+        .eq("plan_id", planId);
       if (error) throw error;
       return NextResponse.json({ revoked: true }, { headers });
     }
@@ -74,6 +95,7 @@ export async function POST(request: NextRequest) {
       .from("subscription_plans")
       .select("document")
       .eq("owner_id", user.id)
+      .eq("id", planId)
       .maybeSingle();
     if (error) throw error;
     const document = documentSchema.safeParse(data?.document);
@@ -91,6 +113,7 @@ export async function POST(request: NextRequest) {
         .select("owner_token")
         .eq("owner_id", user.id)
         .eq("member_id", memberId)
+        .eq("plan_id", planId)
         .maybeSingle();
       if (lookupError) throw lookupError;
       if (existing)
@@ -106,6 +129,7 @@ export async function POST(request: NextRequest) {
     const { error: shareError } = await db.from("subscription_shares").upsert(
       {
         owner_id: user.id,
+        plan_id: planId,
         member_id: memberId,
         token_hash: tokenHash,
         owner_token: token,
@@ -119,6 +143,7 @@ export async function POST(request: NextRequest) {
       .select("owner_token")
       .eq("owner_id", user.id)
       .eq("member_id", memberId)
+      .eq("plan_id", planId)
       .single();
     if (savedError) throw savedError;
     return NextResponse.json(
