@@ -133,7 +133,9 @@ test("demo splits every paise, records partial payments, and preserves old bills
   await expect(page.getByLabel("View cycle").locator("option")).toHaveCount(2);
 
   await page.getByLabel("View cycle").selectOption(firstCycle);
-  await expect(page.locator("tbody tr:not(.plan-inline-receipt)")).toHaveCount(3);
+  await expect(page.locator("tbody tr:not(.plan-inline-receipt)")).toHaveCount(
+    3,
+  );
   await expect(memberRow(page, "Bob").locator("td").nth(1)).toHaveText(
     "₹33.66",
   );
@@ -509,4 +511,65 @@ test("reported payment waits for opening and delay, without confirming receipt",
     page.getByRole("button", { name: "Reported paid · awaiting confirmation" }),
   ).toBeDisabled();
   await expect(page.locator(".plan-simple-summary")).toContainText("₹23.67");
+});
+
+test("short branded links support coverage requests and confirmed-payment activity", async ({
+  page,
+}) => {
+  const code = "c".repeat(22);
+  const requests: { action: string; months: number }[] = [];
+  await page.route("**/api/subscriptions/view", async (route) => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${code}`);
+    if (route.request().method() === "POST") {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({ json: { reported: false } });
+    } else await route.fulfill({ json: personalView });
+  });
+  const response = await page.goto(`/shared/${code}`);
+  expect(response?.headers()["referrer-policy"]).toBe("no-referrer");
+  await page.getByLabel("Payment coverage", { exact: true }).selectOption("3");
+  await expect(
+    page.getByRole("link", { name: "Pay ₹91.01 with UPI" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Request this schedule", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      requests.some((r) => r.action === "preference" && r.months === 3),
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await expect(
+    page.locator(".plan-activity-grid button[data-paid=true]"),
+  ).toHaveCount(1);
+  await page.locator(".plan-activity-grid button[data-paid=true]").click();
+  await expect(page.locator(".plan-activity-selection")).toContainText(
+    "₹10.00 confirmed",
+  );
+  await page.getByLabel("Payment activity year").selectOption("2026");
+});
+
+test("manager confirmation places excess money into credit and applies it to the next bill", async ({
+  page,
+}) => {
+  await createDemo(page);
+  await openCycle(page);
+  await memberRow(page, "Alice")
+    .getByRole("button", { name: "Record payment" })
+    .click();
+  await page.getByLabel("Amount received").fill("100.00");
+  await page.getByLabel("Record excess as advance credit").check();
+  await page.getByRole("button", { name: "Save payment", exact: true }).click();
+  await page
+    .getByText("Payment history & corrections", { exact: true })
+    .click();
+  await expect(page.locator(".plan-history")).toContainText("₹66.33 remaining");
+  await openCycle(page);
+  await expect(memberRow(page, "Alice").locator("td").nth(2)).toHaveText(
+    "₹33.67",
+  );
+  await expect(memberRow(page, "Alice").locator("td").nth(3)).toHaveText(
+    "₹0.00",
+  );
 });

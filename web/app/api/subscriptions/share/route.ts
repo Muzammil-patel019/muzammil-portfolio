@@ -39,14 +39,16 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
     const { data: reports, error: reportsError } = await db
       .from("subscription_payment_reports")
-      .select("member_id,cycle_id,reported_at")
+      .select(
+        "member_id,cycle_id,reported_at,term_months,amount_minor,coverage_end,preference_at,approved_months",
+      )
       .eq("owner_id", user.id)
       .eq(
         "plan_id",
         request.nextUrl.searchParams.get("planId") ||
           "00000000-0000-0000-0000-000000000000",
       )
-      .not("reported_at", "is", null);
+      .is("confirmed_at", null);
     if (reportsError) throw reportsError;
     return NextResponse.json(
       {
@@ -72,6 +74,12 @@ export async function POST(request: NextRequest) {
         memberId: z.uuid().transform((value) => value.toLowerCase()),
         revoke: z.boolean().optional(),
         replace: z.boolean().optional(),
+        approveMonths: z
+          .number()
+          .int()
+          .refine((n) => [1, 3, 6, 12].includes(n))
+          .optional(),
+        cycleId: z.uuid().optional(),
       })
       .strict()
       .safeParse(await readJSON(request));
@@ -107,24 +115,58 @@ export async function POST(request: NextRequest) {
         { error: "Save this member before creating a link." },
         { status: 400, headers },
       );
+    if (parsed.data.approveMonths) {
+      if (!parsed.data.cycleId)
+        return NextResponse.json(
+          { error: "Choose a period." },
+          { status: 400, headers },
+        );
+      const {data:approved,error:approvalError}=await db.rpc("approve_subscription_coverage",{plan_id:planId,member_id:memberId,cycle_id:parsed.data.cycleId,months:parsed.data.approveMonths});
+      if (approvalError) throw approvalError;
+      if (!approved)
+        return NextResponse.json(
+          { error: "Preference changed. Reload and try again." },
+          { status: 409, headers },
+        );
+      return NextResponse.json({ approved: true }, { headers });
+    }
     if (!replace) {
       const { data: existing, error: lookupError } = await db
         .from("subscription_shares")
-        .select("owner_token")
+        .select("owner_token,owner_code")
         .eq("owner_id", user.id)
         .eq("member_id", memberId)
         .eq("plan_id", planId)
         .maybeSingle();
       if (lookupError) throw lookupError;
-      if (existing)
-        return NextResponse.json(
-          existing.owner_token
-            ? { token: existing.owner_token }
-            : { needsReplacement: true },
-          { headers },
-        );
+      if (existing) {
+        if (existing.owner_code)
+          return NextResponse.json({ code: existing.owner_code }, { headers });
+        const code = randomBytes(16).toString("base64url");
+        const { error: aliasError } = await db
+          .from("subscription_shares")
+          .update({
+            owner_code: code,
+            code_hash: createHash("sha256").update(code).digest("hex"),
+          })
+          .eq("owner_id", user.id)
+          .eq("plan_id", planId)
+          .eq("member_id", memberId)
+          .is("owner_code", null);
+        if (aliasError) throw aliasError;
+        const { data: alias, error: aliasReadError } = await db
+          .from("subscription_shares")
+          .select("owner_code")
+          .eq("owner_id", user.id)
+          .eq("plan_id", planId)
+          .eq("member_id", memberId)
+          .single();
+        if (aliasReadError) throw aliasReadError;
+        return NextResponse.json({ code: alias.owner_code }, { headers });
+      }
     }
     const token = randomBytes(32).toString("base64url");
+    const code = randomBytes(16).toString("base64url");
     const tokenHash = createHash("sha256").update(token).digest("hex");
     const { error: shareError } = await db.from("subscription_shares").upsert(
       {
@@ -133,6 +175,8 @@ export async function POST(request: NextRequest) {
         member_id: memberId,
         token_hash: tokenHash,
         owner_token: token,
+        owner_code: code,
+        code_hash: createHash("sha256").update(code).digest("hex"),
         created_at: new Date().toISOString(),
       },
       { onConflict: "owner_id,member_id", ignoreDuplicates: !replace },
@@ -140,16 +184,14 @@ export async function POST(request: NextRequest) {
     if (shareError) throw shareError;
     const { data: saved, error: savedError } = await db
       .from("subscription_shares")
-      .select("owner_token")
+      .select("owner_token,owner_code")
       .eq("owner_id", user.id)
       .eq("member_id", memberId)
       .eq("plan_id", planId)
       .single();
     if (savedError) throw savedError;
     return NextResponse.json(
-      saved.owner_token
-        ? { token: saved.owner_token }
-        : { needsReplacement: true },
+      { code: saved.owner_code, token: saved.owner_token },
       { headers },
     );
   } catch (error) {

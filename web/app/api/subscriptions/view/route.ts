@@ -14,7 +14,7 @@ const headers = {
 export async function GET(request: NextRequest) {
   const token = request.headers
     .get("authorization")
-    ?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
+    ?.match(/^Bearer ([A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/)?.[1];
   if (!token)
     return NextResponse.json(
       { error: "This link is invalid or has been revoked." },
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const token = request.headers
     .get("authorization")
-    ?.match(/^Bearer ([A-Za-z0-9_-]{43})$/)?.[1];
+    ?.match(/^Bearer ([A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/)?.[1];
   if (!token)
     return NextResponse.json(
       { error: "Invalid personal link." },
@@ -67,7 +67,15 @@ export async function POST(request: NextRequest) {
     );
   try {
     const parsed = z
-      .object({ cycleId: z.uuid(), action: z.enum(["opened", "paid"]) })
+      .object({
+        cycleId: z.uuid(),
+        action: z.enum(["opened", "paid", "preference"]),
+        months: z
+          .number()
+          .int()
+          .refine((n) => [1, 3, 6, 12].includes(n))
+          .optional(),
+      })
       .strict()
       .safeParse(await readJSON(request));
     if (!parsed.success)
@@ -85,11 +93,17 @@ export async function POST(request: NextRequest) {
     const db = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data, error } = await db.rpc("report_subscription_payment", {
-      token_hash: createHash("sha256").update(token).digest("hex"),
-      cycle_id: parsed.data.cycleId,
-      report_action: parsed.data.action,
-    });
+    const { data, error } = await db.rpc(
+      parsed.data.months
+        ? "report_subscription_coverage"
+        : "report_subscription_payment",
+      {
+        token_hash: createHash("sha256").update(token).digest("hex"),
+        cycle_id: parsed.data.cycleId,
+        report_action: parsed.data.action,
+        ...(parsed.data.months ? { months: parsed.data.months } : {}),
+      },
+    );
     if (error)
       return NextResponse.json(
         {

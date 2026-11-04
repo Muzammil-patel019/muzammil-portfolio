@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { daysUntil, money } from "@/lib/subscriptions";
+import { PaymentActivity } from "./PaymentActivity";
+import {
+  coverageOptions,
+  coverageQuote,
+  type CoverageMonths,
+} from "@/lib/member-billing";
 import { subscriptionUpiPayment } from "@/lib/subscription-upi";
 type MemberCycle = {
   id: string;
@@ -10,9 +16,25 @@ type MemberCycle = {
   currency: "INR" | "USD" | "EUR" | "GBP";
   amountMinor: number;
   reportedAt?: string;
-  payments: { amountMinor: number; date: string }[];
+  coverage?: {
+    months?: CoverageMonths;
+    amountMinor?: number;
+    endDate?: string;
+    requestedAt?: string;
+    approvedMonths?: number;
+  };
+  payments: { amountMinor: number; date: string; sourceCreditId?: string }[];
 };
 type View = {
+  credits?: {
+    id: string;
+    amountMinor: number;
+    remainingMinor: number;
+    currency: "INR" | "USD" | "EUR" | "GBP";
+    date: string;
+    startDate: string;
+    endDate: string;
+  }[];
   plan: {
     name: string;
     paymentNote: string;
@@ -20,7 +42,12 @@ type View = {
     upiId?: string;
     payeeName?: string;
   };
-  member: { id: string; name: string; joinedDate?: string };
+  member: {
+    id: string;
+    name: string;
+    joinedDate?: string;
+    preferredMonths?: CoverageMonths;
+  };
   cycles: MemberCycle[];
 };
 const paid = (cycle: MemberCycle) =>
@@ -85,17 +112,46 @@ function PaymentLink({
   cycle,
   plan,
   onReported,
+  creditMinor = 0,
+  preferredMonths,
+  accessCode,
 }: {
   cycle: MemberCycle;
   plan: View["plan"];
   onReported: () => void;
+  creditMinor?: number;
+  preferredMonths?: CoverageMonths;
+  accessCode?: string;
 }) {
-  const payment = subscriptionUpiPayment(plan.name, cycle, plan);
+  const baseMonths = coverageQuote(cycle, 1).baseMonths;
+  const [months, setMonths] = useState<CoverageMonths>(
+    cycle.coverage?.months ||
+      preferredMonths ||
+      ([1, 3, 6, 12].includes(baseMonths) ? (baseMonths as CoverageMonths) : 1),
+  );
+  const quote = coverageQuote(cycle, months, creditMinor);
+  const payment = subscriptionUpiPayment(
+    plan.name,
+    {
+      ...cycle,
+      amountMinor: quote.amountMinor,
+      payments: [],
+      renewalDate: quote.endDate,
+    },
+    { ...plan, coverageMonths: months },
+  );
   const [openedAt, setOpenedAt] = useState(0),
     [seconds, setSeconds] = useState(0),
     [reported, setReported] = useState(!!cycle.reportedAt),
     [busy, setBusy] = useState(false),
     [status, setStatus] = useState("");
+  useEffect(() => {
+    setReported(!!cycle.reportedAt);
+    if (!cycle.reportedAt) {
+      setOpenedAt(0);
+      setSeconds(0);
+    }
+  }, [cycle.reportedAt]);
   useEffect(() => {
     if (!openedAt) return;
     const tick = () =>
@@ -104,30 +160,80 @@ function PaymentLink({
     const timer = setInterval(tick, 500);
     return () => clearInterval(timer);
   }, [openedAt]);
-  async function send(action: "opened" | "paid") {
+  async function send(action: "opened" | "paid" | "preference") {
     const response = await fetch("/api/subscriptions/view", {
       method: "POST",
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${location.hash.slice(1)}`,
+        Authorization: `Bearer ${accessCode || location.hash.slice(1)}`,
       },
-      body: JSON.stringify({ cycleId: cycle.id, action }),
+      body: JSON.stringify({ cycleId: cycle.id, action, months }),
       referrerPolicy: "no-referrer",
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Please try again.");
     return result;
   }
-  if (!payment) return <p>Payment details will be added by your manager.</p>;
   return (
     <div className="plan-upi-payment">
+      <label className="plan-coverage-label">
+        Payment coverage
+        <select
+          aria-label="Payment coverage"
+          value={months}
+          disabled={busy || reported || !!cycle.reportedAt}
+          onChange={(e) => {
+            setMonths(+e.target.value as CoverageMonths);
+            setOpenedAt(0);
+            setSeconds(0);
+            setStatus("");
+          }}
+        >
+          {coverageOptions.map((option) => (
+            <option key={option.months} value={option.months}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="plan-coverage-dates">
+        {displayDate(quote.startDate)} – {displayDate(quote.endDate)}
+      </p>
+      <p className="plan-coverage-price">
+        {money(quote.amountMinor, cycle.currency)}{" "}
+        <small>at the current rate, after recorded payments</small>
+      </p>
+      <button
+        disabled={busy || reported || !!cycle.reportedAt}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await send("preference");
+            setStatus("Preference sent to your manager for approval.");
+            onReported();
+          } catch (error) {
+            setStatus((error as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {cycle.coverage?.approvedMonths === months || preferredMonths === months
+          ? "Preference approved"
+          : "Request this schedule"}
+      </button>
+      {cycle.coverage?.requestedAt &&
+        cycle.coverage.approvedMonths !== months && (
+          <small>Schedule request awaiting approval</small>
+        )}
       <a
         className="plan-button"
-        href={payment.href}
+        href={payment?.href}
+        aria-disabled={!payment || busy}
         onClick={async (e) => {
           e.preventDefault();
-          if (busy) return;
+          if (busy || !payment) return;
           setBusy(true);
           setStatus("");
           window.open(payment.href, "_blank", "noopener,noreferrer");
@@ -142,7 +248,11 @@ function PaymentLink({
           }
         }}
       >
-        Pay {money(cycle.amountMinor - paid(cycle), cycle.currency)} with UPI
+        {payment
+          ? `Pay ${money(quote.amountMinor, cycle.currency)} with UPI`
+          : quote.amountMinor === 0
+            ? "Selected coverage already paid"
+            : "Payment details not set"}
       </a>
       <button
         className="plan-report-paid"
@@ -170,10 +280,11 @@ function PaymentLink({
             : "I’ve paid"}
       </button>
       <p className="plan-payee">
-        {payment.upiId}{" "}
+        {payment?.upiId}{" "}
         <button
           onClick={async () => {
             try {
+              if (!payment) return;
               await navigator.clipboard.writeText(payment.upiId);
               setStatus("UPI ID copied.");
             } catch {
@@ -185,13 +296,16 @@ function PaymentLink({
         </button>
       </p>
       <small>
-        Report after completing the payment. Your manager confirms receipt.
+        Pay upfront or request approval. Extra payment becomes advance credit
+        after your manager confirms receipt.
       </small>
       <span role="status">{status}</span>
     </div>
   );
 }
-export function SubscriptionViewer() {
+export function SubscriptionViewer({
+  accessCode,
+}: { accessCode?: string } = {}) {
   const [view, setView] = useState<View | null>(null),
     [message, setMessage] = useState("Opening your personal plan…"),
     [busy, setBusy] = useState(false),
@@ -200,8 +314,8 @@ export function SubscriptionViewer() {
     "overview",
   );
   async function refresh() {
-    const token = location.hash.slice(1);
-    if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) {
+    const token = accessCode || location.hash.slice(1);
+    if (!/^(?:[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/.test(token)) {
       setView(null);
       setMessage(
         "This personal link is missing or incomplete. Ask your plan manager for a new link.",
@@ -245,7 +359,7 @@ export function SubscriptionViewer() {
       clearInterval(timer);
       window.removeEventListener("hashchange", refresh);
     };
-  }, []);
+  }, [accessCode]);
   const cycles = view
     ? [...view.cycles].sort((a, b) => b.startDate.localeCompare(a.startDate))
     : [];
@@ -348,62 +462,60 @@ export function SubscriptionViewer() {
                 </p>
               </div>
             )}
+            {(view.credits || []).some((c) => c.remainingMinor > 0) && (
+              <section className="plan-box plan-credit">
+                <h2>Advance credit</h2>
+                {(view.credits || [])
+                  .filter((c) => c.remainingMinor > 0)
+                  .map((c) => (
+                    <p key={c.id}>
+                      {money(c.remainingMinor, c.currency)} available · received{" "}
+                      {displayDate(c.date)}
+                    </p>
+                  ))}
+              </section>
+            )}
             {latest && (
               <p className="plan-renewal-line">
                 Renews {displayDate(latest.renewalDate)} · Your share{" "}
                 {money(latest.amountMinor, latest.currency)}
               </p>
             )}
-            {latest &&
-              subscriptionUpiPayment(view.plan.name, latest, view.plan) && (
-                <section className="plan-box">
-                  <h2>Pay your share</h2>
-                  <PaymentLink
-                    key={latest.id}
-                    cycle={latest}
-                    plan={view.plan}
-                    onReported={() => void refresh()}
-                  />
-                </section>
-              )}
+            {latest && (
+              <section className="plan-box">
+                <h2>Payment options</h2>
+                <PaymentLink
+                  key={latest.id}
+                  cycle={latest}
+                  plan={view.plan}
+                  preferredMonths={view.member.preferredMonths}
+                  creditMinor={(view.credits || [])
+                    .filter(
+                      (c) =>
+                        c.currency === latest.currency &&
+                        c.startDate <= latest.startDate,
+                    )
+                    .reduce((sum, c) => sum + c.remainingMinor, 0)}
+                  accessCode={accessCode}
+                  onReported={() => void refresh()}
+                />
+              </section>
+            )}
           </div>
-          {cycles.length > 0 && activeTab === "history" && (
-            <section className="plan-box plan-chart">
-              <div className="plan-section-head">
-                <div>
-                  <p className="plan-label">YOUR JOURNEY</p>
-                  <h2>Payment timeline</h2>
-                </div>
-                <span>
-                  {cycles.filter((c) => paid(c) === c.amountMinor).length} /{" "}
-                  {cycles.length} periods paid
-                </span>
-              </div>
-              <div className="plan-chart-bars">
-                {[...cycles].reverse().map((c) => (
-                  <div className="plan-chart-period" key={c.id}>
-                    <span className="plan-chart-track">
-                      <span
-                        style={{
-                          height: `${c.amountMinor ? Math.min(100, (paid(c) / c.amountMinor) * 100) : 100}%`,
-                        }}
-                      />
-                    </span>
-                    <strong>{displayDate(c.startDate, true)}</strong>
-                    <meter
-                      min={0}
-                      max={Math.max(1, c.amountMinor)}
-                      value={paid(c)}
-                      aria-label={`Paid for ${displayDate(c.startDate, true)}`}
-                    />
-                    <small>
-                      {money(paid(c), c.currency)} /{" "}
-                      {money(c.amountMinor, c.currency)}
-                    </small>
-                  </div>
-                ))}
-              </div>
-            </section>
+          {activeTab === "history" && (
+            <PaymentActivity
+              joinedDate={view.member.joinedDate}
+              events={[
+                ...cycles.flatMap((c) =>
+                  c.payments.map((p) => ({ ...p, currency: c.currency })),
+                ),
+                ...(view.credits || []).map((c) => ({
+                  date: c.date,
+                  amountMinor: c.amountMinor,
+                  currency: c.currency,
+                })),
+              ]}
+            />
           )}
           <div
             className="plan-history-panel plan-receipts"
@@ -415,6 +527,20 @@ export function SubscriptionViewer() {
                 Earlier unpaid balances stay visible here. Each bill is tracked
                 separately.
               </p>
+              {(view.credits || []).map((c) => (
+                <article className="plan-member-cycle" key={c.id}>
+                  <h3>Advance payment received</h3>
+                  <strong>{money(c.amountMinor, c.currency)}</strong>
+                  <p>
+                    {displayDate(c.date)} ·{" "}
+                    {money(c.remainingMinor, c.currency)} credit remaining
+                  </p>
+                  <p>
+                    Selected coverage: {displayDate(c.startDate)} –{" "}
+                    {displayDate(c.endDate)}
+                  </p>
+                </article>
+              ))}
               {cycles.map((cycle) => (
                 <article className="plan-member-cycle" key={cycle.id}>
                   <div className="plan-section-head">
@@ -453,6 +579,9 @@ export function SubscriptionViewer() {
                           <li key={i}>
                             {displayDate(p.date)} ·{" "}
                             {money(p.amountMinor, cycle.currency)}
+                            {p.sourceCreditId
+                              ? " · Advance credit applied"
+                              : ""}
                           </li>
                         ))}
                       </ul>
@@ -463,6 +592,15 @@ export function SubscriptionViewer() {
                       key={cycle.id}
                       cycle={cycle}
                       plan={view.plan}
+                      preferredMonths={view.member.preferredMonths}
+                      creditMinor={(view.credits || [])
+                        .filter(
+                          (c) =>
+                            c.currency === cycle.currency &&
+                            c.startDate <= cycle.startDate,
+                        )
+                        .reduce((sum, c) => sum + c.remainingMinor, 0)}
+                      accessCode={accessCode}
                       onReported={() => void refresh()}
                     />
                   )}

@@ -9,7 +9,7 @@ export function subscriptionUpiPayment(
     amountMinor: number;
     payments: { amountMinor: number }[];
   },
-  payee?: { upiId?: string; payeeName?: string },
+  payee?: { upiId?: string; payeeName?: string; coverageMonths?: number },
 ) {
   const upiId =
     payee?.upiId ||
@@ -30,7 +30,7 @@ export function subscriptionUpiPayment(
     year: "numeric",
     timeZone: "UTC",
   }).format(date);
-  const note = `${planName.slice(0, 24)} - ${month}`;
+  const note = `${planName.slice(0, 20)}${payee?.coverageMonths && payee.coverageMonths > 1 ? ` ${payee.coverageMonths}mo` : ""} - ${month}`;
   const params = new URLSearchParams({
     pa: upiId,
     pn: payee?.payeeName || "Muzammil",

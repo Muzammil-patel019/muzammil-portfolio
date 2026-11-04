@@ -1,6 +1,11 @@
 "use client";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import {
+  recordMemberReceipt,
+  applyAdvanceCredit,
+  type CoverageMonths,
+} from "@/lib/member-billing";
 import { browserClient } from "@/lib/supabase";
 import {
   buildCycle,
@@ -47,7 +52,16 @@ export function SubscriptionManager() {
     Record<string, SubscriptionDocument>
   >({});
   const [reports, setReports] = useState<
-    { member_id: string; cycle_id: string; reported_at: string }[]
+    {
+      member_id: string;
+      cycle_id: string;
+      reported_at: string | null;
+      term_months?: CoverageMonths;
+      amount_minor?: number;
+      coverage_end?: string;
+      preference_at?: string;
+      approved_months?: number;
+    }[]
   >([]);
   const [doc, setDoc] = useState<SubscriptionDocument | null>(null),
     [revision, setRevision] = useState(0);
@@ -65,6 +79,7 @@ export function SubscriptionManager() {
     amount: string;
     date: string;
     note: string;
+    advance?: boolean;
   } | null>(null);
   async function api(path: string, method = "GET", body?: unknown) {
     const { data } = await db!.auth.getSession();
@@ -115,7 +130,9 @@ export function SubscriptionManager() {
           replace: true,
         });
       }
-      const url = `${location.origin}/subscriptions/view#${result.token}`;
+      const url = result.code
+        ? `${location.origin}/shared/${result.code}`
+        : `${location.origin}/subscriptions/view#${result.token}`;
       setLink(url);
       setShares((current) => [...new Set([...current, memberId])]);
       try {
@@ -208,7 +225,10 @@ export function SubscriptionManager() {
       window.removeEventListener("focus", refreshReports);
     };
   }, [planId, auth, demo]);
-  async function persist(next: SubscriptionDocument) {
+  async function persist(
+    next: SubscriptionDocument,
+    confirmedReport?: { memberId: string; cycleId: string; reportedAt: string },
+  ) {
     const checked = documentSchema.safeParse(next);
     if (!checked.success)
       throw new Error(
@@ -229,6 +249,7 @@ export function SubscriptionManager() {
     const result = await api("/api/subscriptions", "POST", {
       document: next,
       revision,
+      confirmedReport,
     });
     setDoc(next);
     setPlanId(result.id);
@@ -792,6 +813,7 @@ export function SubscriptionManager() {
                       )
                     )
                       return;
+                    applyAdvanceCredit(next, created);
                     next.cycles.push(created);
                     await persist(next);
                     setSelected(created.id);
@@ -833,6 +855,7 @@ export function SubscriptionManager() {
                     const created = buildCycle(temp);
                     const dates = cycleDates(start, doc.plan.interval, 0);
                     Object.assign(created, dates, { dueDate: start });
+                    applyAdvanceCredit(next, created);
                     next.cycles.push(created);
                     await persist(next);
                     setSelected(created.id);
@@ -941,18 +964,69 @@ export function SubscriptionManager() {
                             <tr>
                               <td>
                                 <strong>{allocation.name}</strong>
+                                {reports
+                                  .filter(
+                                    (r) =>
+                                      r.member_id === allocation.memberId &&
+                                      r.cycle_id === cycle.id &&
+                                      r.preference_at,
+                                  )
+                                  .map((r) => (
+                                    <div
+                                      className="plan-preference"
+                                      key={r.cycle_id}
+                                    >
+                                      <small>
+                                        {r.term_months} month preference ·{" "}
+                                        {r.approved_months === r.term_months
+                                          ? "Approved"
+                                          : "Awaiting approval"}
+                                      </small>
+                                      {r.approved_months !== r.term_months && (
+                                        <button
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void action(async () => {
+                                              await api(
+                                                "/api/subscriptions/share",
+                                                "POST",
+                                                {
+                                                  memberId: allocation.memberId,
+                                                  cycleId: cycle.id,
+                                                  approveMonths: r.term_months,
+                                                },
+                                              );
+                                              setReports((current) =>
+                                                current.map((p) =>
+                                                  p === r
+                                                    ? {
+                                                        ...p,
+                                                        approved_months:
+                                                          r.term_months,
+                                                      }
+                                                    : p,
+                                                ),
+                                              );
+                                            })
+                                          }
+                                        >
+                                          Approve preference
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
                                 <span
                                   className={`plan-badge ${balance === 0 ? "settled" : ""}`}
                                 >
-                                  {balance === 0
-                                    ? "Settled"
-                                    : reports.some(
-                                          (r) =>
-                                            r.member_id ===
-                                              allocation.memberId &&
-                                            r.cycle_id === cycle.id,
-                                        )
-                                      ? "Member reported paid · verify"
+                                  {reports.some(
+                                    (r) =>
+                                      r.reported_at &&
+                                      r.member_id === allocation.memberId &&
+                                      r.cycle_id === cycle.id,
+                                  )
+                                    ? "Member reported paid · verify"
+                                    : balance === 0
+                                      ? "Settled"
                                       : paid
                                         ? "Part paid"
                                         : "Awaiting payment"}
@@ -969,11 +1043,37 @@ export function SubscriptionManager() {
                               </td>
                               <td>
                                 <button
-                                  disabled={busy || balance === 0}
+                                  disabled={
+                                    busy ||
+                                    (balance === 0 &&
+                                      !reports.some(
+                                        (r) =>
+                                          r.member_id === allocation.memberId &&
+                                          r.cycle_id === cycle.id &&
+                                          r.reported_at &&
+                                          r.amount_minor,
+                                      ))
+                                  }
                                   onClick={() =>
                                     setPayment({
                                       memberId: allocation.memberId,
-                                      amount: (balance / 100).toFixed(2),
+                                      advance:
+                                        (reports.find(
+                                          (r) =>
+                                            r.member_id ===
+                                              allocation.memberId &&
+                                            r.cycle_id === cycle.id &&
+                                            r.reported_at,
+                                        )?.amount_minor || 0) > balance,
+                                      amount: (
+                                        (reports.find(
+                                          (r) =>
+                                            r.member_id ===
+                                              allocation.memberId &&
+                                            r.cycle_id === cycle.id &&
+                                            r.reported_at,
+                                        )?.amount_minor || balance) / 100
+                                      ).toFixed(2),
                                       date: todayIST(),
                                       note: "",
                                     })
@@ -981,6 +1081,7 @@ export function SubscriptionManager() {
                                 >
                                   {reports.some(
                                     (r) =>
+                                      r.reported_at &&
                                       r.member_id === allocation.memberId &&
                                       r.cycle_id === cycle.id,
                                   )
@@ -1026,21 +1127,44 @@ export function SubscriptionManager() {
                                         const amountMinor = parseMoney(
                                           payment.amount,
                                         );
+                                        const report = reports.find(
+                                          (r) =>
+                                            r.member_id === payment.memberId &&
+                                            r.cycle_id === cycle.id &&
+                                            r.reported_at,
+                                        );
                                         if (
                                           amountMinor >
-                                          allocation.amountMinor -
-                                            paidTotal(allocation)
+                                            allocation.amountMinor -
+                                              paidTotal(allocation) &&
+                                          !payment.advance
                                         )
                                           throw new Error(
                                             "Payment exceeds this member’s remaining balance.",
                                           );
-                                        allocation.payments.push({
-                                          id: crypto.randomUUID(),
+                                        recordMemberReceipt(
+                                          next,
+                                          cycle.id,
+                                          payment.memberId,
                                           amountMinor,
-                                          date: payment.date,
-                                          note: payment.note.trim(),
-                                        });
-                                        await persist(next);
+                                          payment.date,
+                                          payment.note.trim(),
+                                          report?.term_months,
+                                        );
+                                        await persist(
+                                          next,
+                                          report?.reported_at
+                                            ? {
+                                                memberId: payment.memberId,
+                                                cycleId: cycle.id,
+                                                reportedAt: report.reported_at,
+                                              }
+                                            : undefined,
+                                        );
+                                        if (report)
+                                          setReports((current) =>
+                                            current.filter((r) => r !== report),
+                                          );
                                         setPayment(null);
                                       });
                                     }}
@@ -1098,6 +1222,19 @@ export function SubscriptionManager() {
                                         />
                                       </div>
                                     </div>
+                                    <label className="plan-advance-toggle">
+                                      <input
+                                        type="checkbox"
+                                        checked={!!payment.advance}
+                                        onChange={(e) =>
+                                          setPayment({
+                                            ...payment,
+                                            advance: e.target.checked,
+                                          })
+                                        }
+                                      />{" "}
+                                      Record excess as advance credit
+                                    </label>
                                     <label htmlFor="payment-reference">
                                       Private reference / note
                                     </label>
@@ -1139,6 +1276,13 @@ export function SubscriptionManager() {
                 </div>
                 <details className="plan-history">
                   <summary>Payment history & corrections</summary>
+                  {(doc.credits || []).map((c) => (
+                    <p key={c.id}>
+                      {doc.members.find((m) => m.id === c.memberId)?.name}:{" "}
+                      Advance received {money(c.amountMinor, c.currency)} on{" "}
+                      {c.date} · {money(c.remainingMinor, c.currency)} remaining
+                    </p>
+                  ))}
                   {cycle.allocations.flatMap((a) =>
                     a.payments.map((p) => (
                       <div className="plan-history-row" key={p.id}>
@@ -1166,6 +1310,16 @@ export function SubscriptionManager() {
                                 .allocations.find(
                                   (x) => x.memberId === a.memberId,
                                 )!;
+                              if (p.sourceCreditId) {
+                                const credit = next.credits?.find(
+                                  (c) => c.id === p.sourceCreditId,
+                                );
+                                if (credit)
+                                  credit.remainingMinor = Math.min(
+                                    credit.amountMinor,
+                                    credit.remainingMinor + p.amountMinor,
+                                  );
+                              }
                               target.payments = target.payments.filter(
                                 (x) => x.id !== p.id,
                               );
