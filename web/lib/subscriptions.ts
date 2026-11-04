@@ -39,6 +39,7 @@ const paymentSchema = z
     amountMinor: positiveAmount,
     date: dateSchema,
     note: z.string().trim().max(300),
+    sourceCreditId: uuid.optional(),
   })
   .strict();
 const allocationSchema = z
@@ -137,6 +138,27 @@ export const documentSchema = z
           .strict(),
       )
       .max(50),
+    credits: z
+      .array(
+        z
+          .object({
+            id: uuid,
+            memberId: uuid,
+            amountMinor: positiveAmount,
+            remainingMinor: amount,
+            currency: currencySchema,
+            date: dateSchema,
+            startDate: dateSchema,
+            endDate: dateSchema,
+          })
+          .strict()
+          .refine(
+            (c) => c.remainingMinor <= c.amountMinor,
+            "Credit balance cannot exceed the receipt.",
+          ),
+      )
+      .max(240)
+      .optional(),
     cycles: z.array(cycleSchema).max(240),
   })
   .strict()
@@ -186,8 +208,11 @@ export type SubscriptionCycle = SubscriptionDocument["cycles"][number];
 export type SubscriptionAllocation = SubscriptionCycle["allocations"][number];
 export type SubscriptionPayment = SubscriptionAllocation["payments"][number];
 export type SharedSubscription = {
+  credits?: Array<
+    Omit<NonNullable<SubscriptionDocument["credits"]>[number], "memberId">
+  >;
   plan: Pick<SubscriptionPlan, "name" | "paymentNote" | "interval">;
-  member: Pick<SubscriptionMember, "id" | "name" | "joinedDate">;
+  member: Pick<SubscriptionMember, "id" | "name" | "joinedDate"> & {preferredMonths?:number};
   cycles: Array<
     Pick<
       SubscriptionCycle,

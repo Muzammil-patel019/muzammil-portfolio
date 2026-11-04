@@ -57,6 +57,13 @@ export async function POST(request: NextRequest) {
       .object({
         document: documentSchema,
         planId: z.uuid().nullable().optional(),
+        confirmedReport: z
+          .object({
+            memberId: z.uuid(),
+            cycleId: z.uuid(),
+            reportedAt: z.string().datetime({ offset: true }),
+          })
+          .optional(),
         revision: z.number().int().nonnegative().max(2_000_000_000),
       })
       .strict()
@@ -75,18 +82,21 @@ export async function POST(request: NextRequest) {
         { error: "Choose a plan before saving." },
         { status: 400, headers },
       );
-    const query =
+    const { data, error } =
       revision === 0
-        ? db
+        ? await db
             .from("subscription_plans")
             .insert({ owner_id: user.id, document, revision: 1 })
-        : db
-            .from("subscription_plans")
-            .update({ document, revision: revision + 1 })
-            .eq("owner_id", user.id)
-            .eq("revision", revision)
-            .eq("id", planId!);
-    const { data, error } = await query.select("id,revision").maybeSingle();
+            .select("id,revision")
+            .maybeSingle()
+        : await db.rpc("save_subscription_plan", {
+            plan_id: planId,
+            expected_revision: revision,
+            plan_document: document,
+            confirm_member: parsed.data.confirmedReport?.memberId || null,
+            confirm_cycle: parsed.data.confirmedReport?.cycleId || null,
+            confirm_reported: parsed.data.confirmedReport?.reportedAt || null,
+          });
     if (error?.code === "23505" || (!error && !data))
       return NextResponse.json(
         {
