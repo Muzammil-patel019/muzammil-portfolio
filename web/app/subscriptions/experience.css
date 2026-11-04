@@ -448,3 +448,194 @@
     }
   }
 }
+.plan-app .plan-schedule-card {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px;
+  border: 1px solid #d7e1cd;
+  background: #f0f4e6;
+  border-radius: 16px;
+  margin: 20px 0 24px;
+}
+.plan-schedule-card > div {
+  flex: 1;
+  min-width: 180px;
+}
+.plan-schedule-card p {
+  margin-bottom: 0;
+  font-size: 12px;
+}
+.plan-schedule-card .plan-label {
+  margin-bottom: 6px;
+}
+.plan-schedule-card h3 {
+  font-size: 21px;
+}
+.plan-request-state {
+  border-left: 1px solid #d2dcc9;
+  padding-left: 22px;
+}
+.plan-request-state strong {
+  display: block;
+  font-size: 14px;
+  margin: 8px 0 3px;
+}
+.plan-app .plan-selected-term {
+  font-size: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 18px;
+}
+.plan-selected-term strong {
+  background: #e7eddb;
+  padding: 4px 11px;
+  border-radius: 20px;
+  color: #2d503c;
+}
+.plan-app .plan-coverage-editor > summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 5px 0;
+}
+.plan-coverage-editor[open] > summary {
+  margin-bottom: 20px;
+}
+.plan-app .plan-personal-summary > strong.plan-covered-heading {
+  font-size: clamp(35px, 7vw, 56px);
+}
+.plan-app .plan-confirmed-receipt {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--plan-line);
+}
+.plan-confirmed-receipt h2 {
+  font-size: clamp(18px, 3vw, 25px);
+}
+.plan-confirmed-receipt p {
+  font-size: 12px;
+  margin-bottom: 0;
+}
+.plan-receipt-check {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #e6f2cf;
+  color: #456d32;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+}
+.plan-invite-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 20px;
+  background: #edf2e3;
+  border-radius: 14px;
+  margin: 20px 0;
+}
+.plan-invite-strip p {
+  font-size: 12px;
+  margin: 0;
+}
+.plan-app .plan-share-result {
+  padding: 20px;
+  border: 1px dashed #9bb08e;
+  border-radius: 14px;
+  margin: 20px 0;
+  background: #fafcf6;
+}
+.plan-share-result textarea {
+  margin: 10px 0;
+  font-size: 12px;
+  min-height: 68px;
+}
+.plan-share-result .plan-actions {
+  display: flex;
+  gap: 8px;
+}
+.plan-app .plan-link-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+}
+.plan-app .plan-link-list .plan-member-copy {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  padding: 0;
+  flex: 1;
+}
+.plan-person-avatar {
+  grid-row: 1/3;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: #e7eedc;
+  border-radius: 50%;
+  color: #527342;
+}
+.plan-app .plan-link-list .plan-member-copy small {
+  grid-column: 2;
+}
+.plan-app .plan-link-options {
+  flex-shrink: 0;
+  position: relative;
+}
+.plan-link-options > summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--plan-muted);
+  padding: 10px;
+}
+.plan-link-options[open] .plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.plan-link-options button {
+  font-size: 11px;
+  min-height: 36px;
+}
+@media (max-width: 650px) {
+  .plan-request-state {
+    border-left: 0;
+    border-top: 1px solid #d2dcc9;
+    padding-left: 0;
+    padding-top: 16px;
+  }
+  .plan-app .plan-link-list > li {
+    align-items: flex-start;
+  }
+  .plan-app .plan-link-options {
+    max-width: 110px;
+  }
+  .plan-link-options .plan-actions button {
+    width: 100%;
+  }
+  .plan-app .plan-confirmed-receipt {
+    gap: 12px;
+  }
+  .plan-confirmed-receipt .plan-receipt-check {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+}

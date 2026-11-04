@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
     const { db, user } = await owner(request);
     const { data, error } = await db
       .from("subscription_shares")
-      .select("member_id,created_at")
+      .select(
+        "member_id,created_at,preferred_months,requested_months,preference_at",
+      )
       .eq("owner_id", user.id)
       .eq(
         "plan_id",
@@ -56,6 +58,9 @@ export async function GET(request: NextRequest) {
         shares: (data ?? []).map((share) => ({
           memberId: share.member_id,
           createdAt: share.created_at,
+          preferredMonths: share.preferred_months,
+          requestedMonths: share.requested_months,
+          requestedAt: share.preference_at,
         })),
       },
       { headers },
@@ -116,12 +121,16 @@ export async function POST(request: NextRequest) {
         { status: 400, headers },
       );
     if (parsed.data.approveMonths) {
-      if (!parsed.data.cycleId)
-        return NextResponse.json(
-          { error: "Choose a period." },
-          { status: 400, headers },
-        );
-      const {data:approved,error:approvalError}=await db.rpc("approve_subscription_coverage",{plan_id:planId,member_id:memberId,cycle_id:parsed.data.cycleId,months:parsed.data.approveMonths});
+      const { data: approved, error: approvalError } = await db.rpc(
+        "approve_subscription_coverage",
+        {
+          plan_id: planId,
+          member_id: memberId,
+          cycle_id:
+            parsed.data.cycleId || "00000000-0000-0000-0000-000000000000",
+          months: parsed.data.approveMonths,
+        },
+      );
       if (approvalError) throw approvalError;
       if (!approved)
         return NextResponse.json(

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   coverageQuote,
+  confirmedCoverage,
   recordMemberReceipt,
   applyAdvanceCredit,
 } from "../lib/member-billing";
@@ -84,4 +85,41 @@ test("already available credit prevents paying for the same coverage twice", () 
   };
   assert.equal(coverageQuote(c, 3, 11960).amountMinor, 0);
   assert.equal(coverageQuote(c, 6, 11960).amountMinor, 17940);
+});
+
+test("confirmed coverage uses funded months and does not double-count applied credit", () => {
+  const doc = fixture();
+  const cycle = buildCycle(doc);
+  doc.cycles.push(cycle);
+  recordMemberReceipt(doc, cycle.id, id, 17940, "2026-11-04", "", 3);
+  const memberCycles = () =>
+    doc.cycles.map((c) => ({ ...c, ...c.allocations[0] }));
+  assert.deepEqual(
+    confirmedCoverage(memberCycles(), doc.credits || [], cycle.startDate),
+    { startDate: "2026-11-01", endDate: "2027-02-01", currency: "INR" },
+  );
+  const next = buildCycle(doc);
+  applyAdvanceCredit(doc, next);
+  doc.cycles.push(next);
+  assert.equal(
+    confirmedCoverage(memberCycles(), doc.credits || [], next.startDate)
+      ?.endDate,
+    "2027-02-01",
+  );
+});
+test("a partial advance never claims an entire requested term as paid", () => {
+  const doc = fixture();
+  const cycle = buildCycle(doc);
+  doc.cycles.push(cycle);
+  recordMemberReceipt(doc, cycle.id, id, 6000, "2026-11-04", "", 12);
+  assert.equal(
+    confirmedCoverage(
+      [{ ...cycle, ...cycle.allocations[0] }],
+      doc.credits || [],
+      cycle.startDate,
+    )?.endDate,
+    "2026-12-01",
+  );
+  const unpaid = { ...cycle, amountMinor: 5980, payments: [] };
+  assert.equal(confirmedCoverage([unpaid], [], cycle.startDate), null);
 });

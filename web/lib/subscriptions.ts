@@ -208,12 +208,16 @@ export type SubscriptionCycle = SubscriptionDocument["cycles"][number];
 export type SubscriptionAllocation = SubscriptionCycle["allocations"][number];
 export type SubscriptionPayment = SubscriptionAllocation["payments"][number];
 export type SharedSubscription = {
-  groupMembers?:{firstName:string}[];
+  groupMembers?: { firstName: string }[];
   credits?: Array<
     Omit<NonNullable<SubscriptionDocument["credits"]>[number], "memberId">
   >;
   plan: Pick<SubscriptionPlan, "name" | "paymentNote" | "interval">;
-  member: Pick<SubscriptionMember, "id" | "name" | "joinedDate"> & {preferredMonths?:number};
+  member: Pick<SubscriptionMember, "id" | "name" | "joinedDate"> & {
+    preferredMonths?: number;
+    requestedMonths?: number;
+    requestedAt?: string;
+  };
   cycles: Array<
     Pick<
       SubscriptionCycle,
