@@ -116,7 +116,7 @@ begin
  if $4 is not null and $5 is not null then update public.subscription_payment_reports set confirmed_at=now() where plan_id=$1 and owner_id=auth.uid() and member_id=$4 and cycle_id=$5 and reported_at=$6; end if;
  return jsonb_build_object('id',$1,'revision',new_revision);
 end $$;
-revoke all on function public.save_subscription_plan(uuid,integer,jsonb,uuid,uuid,timestamptz) from public;
+revoke all on function public.save_subscription_plan(uuid,integer,jsonb,uuid,uuid,timestamptz) from public,anon;
 grant execute on function public.save_subscription_plan(uuid,integer,jsonb,uuid,uuid,timestamptz) to authenticated;
 create or replace function public.report_subscription_coverage(token_hash text,cycle_id uuid,report_action text,months integer) returns jsonb language plpgsql security definer set search_path='' as $$
 #variable_conflict use_column
@@ -159,7 +159,7 @@ begin
  update public.subscription_shares set preferred_months=$4 where plan_id=$1 and member_id=$2 and owner_id=auth.uid();
  return found;
 end $$;
-revoke all on function public.approve_subscription_coverage(uuid,uuid,uuid,integer) from public;
+revoke all on function public.approve_subscription_coverage(uuid,uuid,uuid,integer) from public,anon;
 grant execute on function public.approve_subscription_coverage(uuid,uuid,uuid,integer) to authenticated;
 
 -- The sole anonymous entry point constructs an explicit allowlist of member fields.
