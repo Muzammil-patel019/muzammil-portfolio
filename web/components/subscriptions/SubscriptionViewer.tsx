@@ -7,6 +7,8 @@ import { CoverageCards } from "./CoverageCards";
 import { PaymentActivity } from "./PaymentActivity";
 import {
   coverageOptions,
+  coverageLabel,
+  confirmedCoverage,
   coverageQuote,
   type CoverageMonths,
 } from "@/lib/member-billing";
@@ -51,6 +53,8 @@ type View = {
     name: string;
     joinedDate?: string;
     preferredMonths?: CoverageMonths;
+    requestedMonths?: CoverageMonths;
+    requestedAt?: string;
   };
   cycles: MemberCycle[];
 };
@@ -118,6 +122,7 @@ function PaymentLink({
   onReported,
   creditMinor = 0,
   preferredMonths,
+  requestedMonths,
   accessCode,
 }: {
   cycle: MemberCycle;
@@ -125,14 +130,24 @@ function PaymentLink({
   onReported: () => void;
   creditMinor?: number;
   preferredMonths?: CoverageMonths;
+  requestedMonths?: CoverageMonths;
   accessCode?: string;
 }) {
   const baseMonths = coverageQuote(cycle, 1).baseMonths;
   const [months, setMonths] = useState<CoverageMonths>(
-    cycle.coverage?.months ||
+    (cycle.reportedAt ? cycle.coverage?.months : undefined) ||
+      requestedMonths ||
       preferredMonths ||
+      cycle.coverage?.months ||
       ([1, 3, 6, 12].includes(baseMonths) ? (baseMonths as CoverageMonths) : 1),
   );
+  const [submittedMonths, setSubmittedMonths] = useState(requestedMonths);
+  useEffect(() => {
+    setSubmittedMonths(requestedMonths);
+  }, [requestedMonths]);
+  const pendingMonths = submittedMonths;
+  const approvedSelection = preferredMonths === months;
+  const pendingSelection = pendingMonths === months;
   const quote = coverageQuote(cycle, months, creditMinor);
   const payment = subscriptionUpiPayment(
     plan.name,
@@ -183,6 +198,33 @@ function PaymentLink({
   const rate = Math.round((cycle.amountMinor * months) / baseMonths);
   return (
     <div className="plan-upi-payment">
+      <section
+        className="plan-schedule-card"
+        aria-label="Your payment schedule"
+      >
+        <div>
+          <p className="plan-label">YOUR PAYMENT SCHEDULE</p>
+          <h3>
+            {preferredMonths
+              ? coverageLabel(preferredMonths)
+              : "Choose what works for you"}
+          </h3>
+          <p>
+            {preferredMonths
+              ? "Approved by your manager"
+              : "Choose a term below and pay upfront, or ask your manager to approve it."}
+          </p>
+        </div>
+        {pendingMonths && (
+          <div className="plan-request-state">
+            <span className="plan-badge">Awaiting approval</span>
+            <strong>{coverageLabel(pendingMonths)} requested</strong>
+            <small>
+              Your approved schedule stays the same until this is accepted.
+            </small>
+          </div>
+        )}
+      </section>
       <ol className="plan-payment-steps" aria-label="Payment steps">
         <li data-current={!openedAt && !awaiting}>
           <span>1</span> Choose coverage
@@ -200,6 +242,9 @@ function PaymentLink({
           your balance. You don’t need to pay again.
         </p>
       )}
+      <p className="plan-selected-term">
+        Selected for this payment <strong>{coverageLabel(months)}</strong>
+      </p>
       <CoverageCards
         cycle={cycle}
         value={months}
@@ -254,11 +299,17 @@ function PaymentLink({
       </div>
       <div className="plan-payment-actions">
         <button
-          disabled={busy || reported || !!cycle.reportedAt}
+          disabled={
+            busy ||
+            awaiting ||
+            pendingSelection ||
+            (approvedSelection && !pendingMonths)
+          }
           onClick={async () => {
             setBusy(true);
             try {
               await send("preference");
+              setSubmittedMonths(months);
               setStatus("Preference sent to your manager for approval.");
               onReported();
             } catch (error) {
@@ -268,15 +319,14 @@ function PaymentLink({
             }
           }}
         >
-          {cycle.coverage?.approvedMonths === months ||
-          preferredMonths === months
-            ? "Preference approved"
-            : "Request this schedule"}
+          {pendingSelection
+            ? `${coverageLabel(months)} requested`
+            : approvedSelection && !pendingMonths
+              ? `${coverageLabel(months)} approved`
+              : pendingMonths
+                ? "Update schedule request"
+                : "Request this schedule"}
         </button>
-        {cycle.coverage?.requestedAt &&
-          cycle.coverage.approvedMonths !== months && (
-            <small>Schedule request awaiting approval</small>
-          )}
         <a
           className="plan-button"
           role="link"
@@ -431,6 +481,11 @@ export function SubscriptionViewer({
     ? [...view.cycles].sort((a, b) => b.startDate.localeCompare(a.startDate))
     : [];
   const latest = cycles[0];
+  const settled =
+    !!latest && paid(latest) >= latest.amountMinor && !latest.reportedAt;
+  const coverage = latest
+    ? confirmedCoverage(cycles, view?.credits || [], latest.startDate)
+    : null;
   return (
     <main className="plan-app plan-viewer">
       <header className="plan-header">
@@ -469,9 +524,19 @@ export function SubscriptionViewer({
           </div>
           <div className="plan-member-meta">
             <span>
-              {billingLabels[view.plan.interval]?.label || view.plan.interval}{" "}
-              plan
+              Group billing:{" "}
+              {billingLabels[view.plan.interval]?.label || view.plan.interval}
             </span>
+            {view.member.preferredMonths && (
+              <span className="plan-badge settled">
+                {coverageLabel(view.member.preferredMonths)} approved
+              </span>
+            )}
+            {view.member.requestedMonths && (
+              <span className="plan-badge">
+                {coverageLabel(view.member.requestedMonths)} requested
+              </span>
+            )}
             <span>
               {view.member.joinedDate
                 ? `Member since ${displayDate(view.member.joinedDate)}`
@@ -510,27 +575,51 @@ export function SubscriptionViewer({
                 <span className="plan-label">
                   {displayDate(latest.startDate, true)}
                 </span>
-                <span className="plan-label">CURRENT BILL · AMOUNT DUE</span>
-                <strong>
-                  {money(latest.amountMinor - paid(latest), latest.currency)}
+                <span className="plan-label">
+                  {settled ? "PAYMENT CONFIRMED" : "CURRENT BILL · AMOUNT DUE"}
+                </span>
+                <strong
+                  className={settled ? "plan-covered-heading" : undefined}
+                >
+                  {settled
+                    ? "You’re covered."
+                    : money(latest.amountMinor - paid(latest), latest.currency)}
                 </strong>
                 <span>
                   {latest.reportedAt
                     ? "Payment reported · awaiting confirmation"
                     : paid(latest) === latest.amountMinor
-                      ? "Paid in full"
+                      ? "Your confirmed payment is recorded below"
                       : countdown(latest.dueDate)}
                 </span>
                 <div className="plan-bill-details">
                   <span>
-                    Billing period
+                    {settled ? "Paid coverage" : "Billing period"}
                     <strong>
-                      {displayDate(latest.startDate)} –{" "}
-                      {displayDate(latest.renewalDate)}
+                      {displayDate(
+                        settled && coverage
+                          ? coverage.startDate
+                          : latest.startDate,
+                      )}{" "}
+                      –{" "}
+                      {displayDate(
+                        settled && coverage
+                          ? coverage.endDate
+                          : latest.renewalDate,
+                      )}
                     </strong>
                   </span>
                   <span>
-                    Pay by<strong>{displayDate(latest.dueDate)}</strong>
+                    {settled ? "Covered until" : "Pay by"}
+                    <strong>
+                      {displayDate(
+                        settled && coverage
+                          ? coverage.endDate
+                          : settled
+                            ? latest.renewalDate
+                            : latest.dueDate,
+                      )}
+                    </strong>
                   </span>
                 </div>
                 {paid(latest) < latest.amountMinor && (
@@ -563,7 +652,7 @@ export function SubscriptionViewer({
                   ))}
               </section>
             )}
-            {latest && (
+            {latest && !settled && (
               <p className="plan-renewal-line">
                 Renews {displayDate(latest.renewalDate)} · Your share{" "}
                 {money(latest.amountMinor, latest.currency)}
@@ -571,22 +660,48 @@ export function SubscriptionViewer({
             )}
             {latest && (
               <section className="plan-box">
-                <h2>Payment options</h2>
-                <PaymentLink
-                  key={latest.id}
-                  cycle={latest}
-                  plan={view.plan}
-                  preferredMonths={view.member.preferredMonths}
-                  creditMinor={(view.credits || [])
-                    .filter(
-                      (c) =>
-                        c.currency === latest.currency &&
-                        c.startDate <= latest.startDate,
-                    )
-                    .reduce((sum, c) => sum + c.remainingMinor, 0)}
-                  accessCode={accessCode}
-                  onReported={() => void refresh()}
-                />
+                {settled && (
+                  <div className="plan-confirmed-receipt">
+                    <span className="plan-receipt-check" aria-hidden="true">
+                      ✓
+                    </span>
+                    <div>
+                      <p className="plan-label">CONFIRMED RECEIPT</p>
+                      <h2>
+                        {displayDate(coverage?.startDate || latest.startDate)} –{" "}
+                        {displayDate(coverage?.endDate || latest.renewalDate)}
+                      </h2>
+                      <p>
+                        Coverage follows confirmed receipts and advance credit
+                        at the recorded rate. Future bills apply available
+                        credit automatically when your manager opens them.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <details open={!settled} className="plan-coverage-editor">
+                  <summary>
+                    {settled
+                      ? "Manage your payment schedule"
+                      : "Choose coverage & payment"}
+                  </summary>
+                  <PaymentLink
+                    key={latest.id}
+                    cycle={latest}
+                    plan={view.plan}
+                    preferredMonths={view.member.preferredMonths}
+                    requestedMonths={view.member.requestedMonths}
+                    creditMinor={(view.credits || [])
+                      .filter(
+                        (c) =>
+                          c.currency === latest.currency &&
+                          c.startDate <= latest.startDate,
+                      )
+                      .reduce((sum, c) => sum + c.remainingMinor, 0)}
+                    accessCode={accessCode}
+                    onReported={() => void refresh()}
+                  />
+                </details>
               </section>
             )}
             {view.groupMembers && <GroupMembers members={view.groupMembers} />}
@@ -709,8 +824,9 @@ export function SubscriptionViewer({
                         </p>
                       </div>
                       <strong>
-                        {money(cycle.amountMinor - paid(cycle), cycle.currency)}{" "}
-                        due
+                        {paid(cycle) >= cycle.amountMinor
+                          ? "Paid in full"
+                          : `${money(cycle.amountMinor - paid(cycle), cycle.currency)} due`}
                       </strong>
                     </div>
                     <div className="plan-mini-totals">
@@ -744,6 +860,7 @@ export function SubscriptionViewer({
                         cycle={cycle}
                         plan={view.plan}
                         preferredMonths={view.member.preferredMonths}
+                        requestedMonths={view.member.requestedMonths}
                         creditMinor={(view.credits || [])
                           .filter(
                             (c) =>

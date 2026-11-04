@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import {
   recordMemberReceipt,
   applyAdvanceCredit,
+  coverageLabel,
   type CoverageMonths,
 } from "@/lib/member-billing";
 import { billingLabels } from "@/lib/subscription-statement";
@@ -78,6 +79,14 @@ export function SubscriptionManager() {
     [loaded, setLoaded] = useState(demo);
   const [selected, setSelected] = useState(""),
     [tab, setTab] = useState<"overview" | "settings">("overview");
+  const [preferences, setPreferences] = useState<
+    {
+      memberId: string;
+      preferredMonths?: number;
+      requestedMonths?: number;
+      requestedAt?: string;
+    }[]
+  >([]);
   const [shares, setShares] = useState<string[]>([]),
     [link, setLink] = useState("");
   const [payment, setPayment] = useState<{
@@ -184,6 +193,7 @@ export function SubscriptionManager() {
         `/api/subscriptions/share?planId=${result?.id || ""}`,
       );
       setReports(sharing.reports || []);
+      setPreferences(sharing.shares || []);
       setShares(
         (Array.isArray(sharing) ? sharing : sharing.shares || []).map(
           (s: { memberId: string }) => s.memberId,
@@ -228,7 +238,10 @@ export function SubscriptionManager() {
         .then((result) => setJoinRequests(result || []))
         .catch(() => {});
       void api(`/api/subscriptions/share?planId=${planId}`)
-        .then((result) => setReports(result.reports || []))
+        .then((result) => {
+          setReports(result.reports || []);
+          setPreferences(result.shares || []);
+        })
         .catch(() => {});
     };
     const timer = setInterval(refreshReports, 15000);
@@ -314,6 +327,9 @@ export function SubscriptionManager() {
   );
   const settledCount =
     cycle?.allocations.filter((a) => paidTotal(a) >= a.amountMinor).length || 0;
+  const pendingPreferences = new Set(
+    preferences.filter((p) => p.requestedMonths).map((p) => p.memberId),
+  );
   const visibleAllocations =
     cycle?.allocations.filter(
       (a) =>
@@ -321,11 +337,13 @@ export function SubscriptionManager() {
           .toLocaleLowerCase()
           .includes(memberSearch.trim().toLocaleLowerCase()) &&
         (collectionFilter === "all" ||
-          (collectionFilter === "pending"
-            ? reportedMembers.has(a.memberId)
-            : collectionFilter === "settled"
-              ? paidTotal(a) >= a.amountMinor
-              : paidTotal(a) < a.amountMinor)),
+          (collectionFilter === "preferences"
+            ? pendingPreferences.has(a.memberId)
+            : collectionFilter === "pending"
+              ? reportedMembers.has(a.memberId)
+              : collectionFilter === "settled"
+                ? paidTotal(a) >= a.amountMinor
+                : paidTotal(a) < a.amountMinor)),
     ) || [];
   function reminder(
     name: string,
@@ -400,6 +418,7 @@ export function SubscriptionManager() {
               setReports([]);
               setJoinRequests([]);
               setShares([]);
+              setPreferences([]);
               if (demo) {
                 const value = demoPlans[plan.id];
                 setPlanId(plan.id);
@@ -424,6 +443,7 @@ export function SubscriptionManager() {
             setSelected("");
             setLink("");
             setShares([]);
+            setPreferences([]);
             setReports([]);
             setJoinRequests([]);
             setPayment(null);
@@ -469,20 +489,6 @@ export function SubscriptionManager() {
       <p className="plan-status" role="status">
         {message}
       </p>
-      {link && (
-        <div className="plan-box">
-          <label htmlFor="share-result">
-            Link or message — copy and send privately
-          </label>
-          <textarea
-            id="share-result"
-            readOnly
-            value={link}
-            onFocus={(e) => e.target.select()}
-          />
-          <button onClick={() => setLink("")}>Hide</button>
-        </div>
-      )}
       {!loaded && !demo && (
         <button disabled={busy} onClick={() => void load()}>
           Retry loading
@@ -847,6 +853,11 @@ export function SubscriptionManager() {
                   {money(cycle.totalMinor, cycle.currency)}
                 </span>
               </div>
+              {pendingPreferences.size > 0 && (
+                <button onClick={() => setCollectionFilter("preferences")}>
+                  {pendingPreferences.size} schedule requests →
+                </button>
+              )}
               {reportedMembers.size > 0 && (
                 <button onClick={() => setCollectionFilter("pending")}>
                   {reportedMembers.size} to verify →
@@ -1032,6 +1043,7 @@ export function SubscriptionManager() {
                       <option value="all">All members</option>
                       <option value="unpaid">Outstanding</option>
                       <option value="pending">Needs verification</option>
+                      <option value="preferences">Schedule requests</option>
                       <option value="settled">Settled</option>
                     </select>
                   </label>
@@ -1073,54 +1085,71 @@ export function SubscriptionManager() {
                             <tr>
                               <td>
                                 <strong>{allocation.name}</strong>
-                                {reports
+                                {preferences
                                   .filter(
-                                    (r) =>
-                                      r.member_id === allocation.memberId &&
-                                      r.cycle_id === cycle.id &&
-                                      r.preference_at,
+                                    (p) =>
+                                      p.memberId === allocation.memberId &&
+                                      (p.preferredMonths || p.requestedMonths),
                                   )
-                                  .map((r) => (
+                                  .map((preference) => (
                                     <div
                                       className="plan-preference"
-                                      key={r.cycle_id}
+                                      key={preference.memberId}
                                     >
-                                      <small>
-                                        {r.term_months} month preference ·{" "}
-                                        {r.approved_months === r.term_months
-                                          ? "Approved"
-                                          : "Awaiting approval"}
-                                      </small>
-                                      {r.approved_months !== r.term_months && (
-                                        <button
-                                          disabled={busy}
-                                          onClick={() =>
-                                            void action(async () => {
-                                              await api(
-                                                "/api/subscriptions/share",
-                                                "POST",
-                                                {
-                                                  memberId: allocation.memberId,
-                                                  cycleId: cycle.id,
-                                                  approveMonths: r.term_months,
-                                                },
-                                              );
-                                              setReports((current) =>
-                                                current.map((p) =>
-                                                  p === r
-                                                    ? {
-                                                        ...p,
-                                                        approved_months:
-                                                          r.term_months,
-                                                      }
-                                                    : p,
-                                                ),
-                                              );
-                                            })
-                                          }
-                                        >
-                                          Approve preference
-                                        </button>
+                                      {preference.preferredMonths && (
+                                        <small>
+                                          {coverageLabel(
+                                            preference.preferredMonths,
+                                          )}{" "}
+                                          · Approved schedule
+                                        </small>
+                                      )}
+                                      {preference.requestedMonths && (
+                                        <>
+                                          <small>
+                                            {coverageLabel(
+                                              preference.requestedMonths,
+                                            )}{" "}
+                                            requested · Awaiting approval
+                                          </small>
+                                          <button
+                                            disabled={busy}
+                                            onClick={() =>
+                                              void action(async () => {
+                                                await api(
+                                                  "/api/subscriptions/share",
+                                                  "POST",
+                                                  {
+                                                    memberId:
+                                                      allocation.memberId,
+                                                    cycleId: cycle.id,
+                                                    approveMonths:
+                                                      preference.requestedMonths,
+                                                  },
+                                                );
+                                                setPreferences((current) =>
+                                                  current.map((p) =>
+                                                    p.memberId ===
+                                                    preference.memberId
+                                                      ? {
+                                                          ...p,
+                                                          preferredMonths:
+                                                            preference.requestedMonths,
+                                                          requestedMonths:
+                                                            undefined,
+                                                        }
+                                                      : p,
+                                                  ),
+                                                );
+                                                setMessage(
+                                                  `${coverageLabel(preference.requestedMonths)} schedule approved for ${allocation.name}. Payment receipts are recorded separately.`,
+                                                );
+                                              })
+                                            }
+                                          >
+                                            Approve preference
+                                          </button>
+                                        </>
                                       )}
                                     </div>
                                   ))}
@@ -1449,28 +1478,42 @@ export function SubscriptionManager() {
             )}
           </section>
           <section className="plan-box">
-            <h2>Group invitations</h2>
-            <p>
-              Share the group invite for new join requests. Personal links below
-              contain individual payment history.
-            </p>
-            <button
-              disabled={busy || demo}
-              onClick={() =>
-                void action(async () => {
-                  const result = await api(
-                    "/api/subscriptions/group",
-                    "POST",
-                    {},
-                  );
-                  const url = `${location.origin}/group/${result.code}`;
-                  setLink(url);
-                  await copy(url);
-                })
-              }
-            >
-              Copy group invite
-            </button>
+            <div className="plan-section-head">
+              <div>
+                <p className="plan-label">INVITE & SHARE</p>
+                <h2>People & links</h2>
+                <p>
+                  Invite someone new, or copy an existing member’s private
+                  payment page.
+                </p>
+              </div>
+              <a className="plan-text-link" href="#plan-members-links">
+                Member links ↓
+              </a>
+            </div>
+            <div className="plan-invite-strip">
+              <div>
+                <h3>Invite someone new</h3>
+                <p>They request a place. You approve who joins.</p>
+              </div>
+              <button
+                disabled={busy || demo}
+                onClick={() =>
+                  void action(async () => {
+                    const result = await api(
+                      "/api/subscriptions/group",
+                      "POST",
+                      {},
+                    );
+                    const url = `${location.origin}/group/${result.code}`;
+                    setLink(url);
+                    await copy(url);
+                  })
+                }
+              >
+                Copy group invite
+              </button>
+            </div>
             {joinRequests.length > 0 && (
               <div className="plan-join-requests">
                 <h3>Awaiting approval</h3>
@@ -1519,12 +1562,32 @@ export function SubscriptionManager() {
                 ))}
               </div>
             )}
-            <h2 style={{ marginTop: 28 }}>Personal member links</h2>
+            {link && (
+              <div className="plan-share-result">
+                <label htmlFor="share-result">Ready to share privately</label>
+                <textarea
+                  id="share-result"
+                  readOnly
+                  value={link}
+                  onFocus={(e) => e.target.select()}
+                />
+                <div className="plan-actions">
+                  <button onClick={() => void copy(link)}>Copy again</button>
+                  <button onClick={() => setLink("")}>Dismiss</button>
+                </div>
+                <small>
+                  You can retrieve a member’s link again by clicking their name.
+                </small>
+              </div>
+            )}
+            <h3 id="plan-members-links" style={{ marginTop: 28 }}>
+              Personal member links
+            </h3>
             <p>
               Click a name to copy their personal link. Saved links can be
               copied again anytime.
             </p>
-            <ul className="plan-member-list">
+            <ul className="plan-member-list plan-link-list">
               {doc.members.map((member) => (
                 <li key={member.id}>
                   <button
@@ -1533,40 +1596,48 @@ export function SubscriptionManager() {
                     onClick={() => void shareMember(member.id)}
                     aria-label={`Copy link for ${member.name}`}
                   >
-                    {member.name}
+                    <span className="plan-person-avatar" aria-hidden="true">
+                      {Array.from(member.name)[0]?.toUpperCase()}
+                    </span>
+                    <span>{member.name}</span>
                     <small>
                       {shares.includes(member.id)
                         ? "Copy personal link ↗"
                         : "Create & copy link ↗"}
                     </small>
                   </button>
-                  <div className="plan-actions">
-                    <button
-                      disabled={busy || demo}
-                      onClick={() => void shareMember(member.id, true)}
-                    >
-                      Replace link
-                    </button>
-                    {shares.includes(member.id) && (
+                  <details className="plan-link-options">
+                    <summary>Link options</summary>
+                    <div className="plan-actions">
                       <button
                         disabled={busy || demo}
-                        onClick={() =>
-                          void action(async () => {
-                            if (!confirm("Disable this link?")) return;
-                            await api("/api/subscriptions/share", "POST", {
-                              memberId: member.id,
-                              revoke: true,
-                            });
-                            setShares(shares.filter((id) => id !== member.id));
-                            setLink("");
-                            setMessage("Member link disabled.");
-                          })
-                        }
+                        onClick={() => void shareMember(member.id, true)}
                       >
-                        Revoke
+                        Replace link
                       </button>
-                    )}
-                  </div>
+                      {shares.includes(member.id) && (
+                        <button
+                          disabled={busy || demo}
+                          onClick={() =>
+                            void action(async () => {
+                              if (!confirm("Disable this link?")) return;
+                              await api("/api/subscriptions/share", "POST", {
+                                memberId: member.id,
+                                revoke: true,
+                              });
+                              setShares(
+                                shares.filter((id) => id !== member.id),
+                              );
+                              setLink("");
+                              setMessage("Member link disabled.");
+                            })
+                          }
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  </details>
                 </li>
               ))}
             </ul>
@@ -1635,6 +1706,7 @@ export function SubscriptionManager() {
                 setDoc(null);
                 setRevision(0);
                 setShares([]);
+                setPreferences([]);
                 setLink("");
                 setPayment(null);
                 setSelected("");

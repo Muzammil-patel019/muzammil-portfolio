@@ -716,3 +716,104 @@ test("reported payment prevents a second UPI payment while awaiting confirmation
     "You don’t need to pay again",
   );
 });
+
+test("approved and requested schedules stay distinct from the payment selection", async ({
+  page,
+}) => {
+  const requested: { months: number; action: string }[] = [];
+  let requestedMonths = 6;
+  await page.route("**/api/subscriptions/view", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      requested.push(body);
+      requestedMonths = body.months;
+      await route.fulfill({ json: { requested: true } });
+    } else
+      await route.fulfill({
+        json: {
+          ...personalView,
+          member: {
+            ...personalView.member,
+            preferredMonths: 3,
+            requestedMonths,
+          },
+        },
+      });
+  });
+  await page.goto(`/shared/${"c".repeat(22)}`);
+  const schedule = page.getByRole("region", { name: "Your payment schedule" });
+  await expect(
+    schedule.getByRole("heading", { name: "Quarterly", exact: true }),
+  ).toBeVisible();
+  await expect(schedule).toContainText("6 months requested");
+  await expect(
+    page.getByRole("radio", { name: "6 months", exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("button", { name: "6 months requested", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("radio", { name: "Yearly", exact: true }).check();
+  await expect(schedule).toContainText("6 months requested");
+  await page.getByRole("button", { name: "Update schedule request" }).click();
+  await expect(schedule).toContainText("Yearly requested");
+  await expect(schedule).toContainText("Quarterly");
+  expect(requested).toEqual([
+    expect.objectContaining({ months: 12, action: "preference" }),
+  ]);
+});
+
+test("confirmed quarterly payment shows funded coverage instead of a zero balance", async ({
+  page,
+}) => {
+  await page.route("**/api/subscriptions/view", (route) =>
+    route.fulfill({
+      json: {
+        ...personalView,
+        member: { ...personalView.member, preferredMonths: 3 },
+        credits: [
+          {
+            id: "credit",
+            amountMinor: 6734,
+            remainingMinor: 6734,
+            currency: "INR",
+            date: "2026-11-05",
+            startDate: "2026-11-01",
+            endDate: "2027-02-01",
+          },
+        ],
+        cycles: [
+          {
+            ...personalView.cycles[0],
+            payments: [{ amountMinor: 3367, date: "2026-11-05" }],
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto(`/shared/${"c".repeat(22)}`);
+  await expect(page.locator(".plan-personal-summary")).toContainText(
+    "You’re covered.",
+  );
+  await expect(page.locator(".plan-personal-summary")).toContainText(
+    "1 Nov 2026 – 1 Feb 2027",
+  );
+  await expect(page.locator(".plan-personal-summary")).not.toContainText(
+    "₹0.00",
+  );
+  await expect(page.getByRole("link", { name: /Pay .* with UPI/ })).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".plan-confirmed-receipt")).toContainText(
+    "1 Feb 2027",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.screenshot({
+    path: "/tmp/shared-covered-mobile.png",
+    fullPage: true,
+  });
+  await page.getByText("Manage your payment schedule", { exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Your payment schedule" }),
+  ).toContainText("Quarterly");
+});

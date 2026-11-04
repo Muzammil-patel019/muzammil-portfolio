@@ -118,6 +118,8 @@ begin
 end $$;
 revoke all on function public.save_subscription_plan(uuid,integer,jsonb,uuid,uuid,timestamptz) from public,anon;
 grant execute on function public.save_subscription_plan(uuid,integer,jsonb,uuid,uuid,timestamptz) to authenticated;
+alter table public.subscription_shares add column if not exists requested_months integer check(requested_months in (1,3,6,12));
+alter table public.subscription_shares add column if not exists preference_at timestamptz;
 create or replace function public.report_subscription_coverage(token_hash text,cycle_id uuid,report_action text,months integer) returns jsonb language plpgsql security definer set search_path='' as $$
 #variable_conflict use_column
 declare share public.subscription_shares; allocation jsonb; billing jsonb; base_months integer; quoted bigint; quote_end date; paid bigint; existing public.subscription_payment_reports;
@@ -132,6 +134,10 @@ begin
  quoted=greatest(0,round((allocation->>'amountMinor')::numeric*$4/base_months)::bigint-paid-coalesce((select sum((credit.value->>'remainingMinor')::bigint) from public.subscription_plans p cross join lateral jsonb_array_elements(coalesce(p.document->'credits','[]'::jsonb)) credit(value) where p.id=share.plan_id and credit.value->>'memberId'=share.member_id::text and credit.value->>'currency'=billing->>'currency' and credit.value->>'startDate'<=billing->>'startDate'),0));
  if (quoted<=0 and $3<>'preference') or quoted>100000000 then raise exception 'Selected coverage is already paid or exceeds the payment limit'; end if;
  quote_end=((billing->>'startDate')::date+make_interval(months=>$4))::date;
+ if $3='preference' then
+  update public.subscription_shares set requested_months=$4,preference_at=now() where plan_id=share.plan_id and member_id=share.member_id;
+  return jsonb_build_object('requested',true,'reported',false,'amountMinor',quoted,'coverageEnd',quote_end);
+ end if;
  select * into existing from public.subscription_payment_reports where plan_id=share.plan_id and member_id=share.member_id and cycle_id=$2;
  if existing.reported_at is not null and existing.confirmed_at is null then return jsonb_build_object('reported',true); end if;
  insert into public.subscription_payment_reports(plan_id,owner_id,member_id,cycle_id,term_months,amount_minor,coverage_end) values(share.plan_id,share.owner_id,share.member_id,$2,$4,quoted,quote_end)
@@ -154,10 +160,10 @@ create or replace function public.approve_subscription_coverage(plan_id uuid,mem
 #variable_conflict use_column
 begin
  if $4 is null or $4 not in(1,3,6,12) then return false;end if;
- update public.subscription_payment_reports set approved_months=$4 where plan_id=$1 and member_id=$2 and cycle_id=$3 and owner_id=auth.uid() and term_months=$4;
+ update public.subscription_shares set preferred_months=$4,requested_months=null,preference_at=null where plan_id=$1 and member_id=$2 and owner_id=auth.uid() and requested_months=$4;
  if not found then return false;end if;
- update public.subscription_shares set preferred_months=$4 where plan_id=$1 and member_id=$2 and owner_id=auth.uid();
- return found;
+ update public.subscription_payment_reports set approved_months=$4 where plan_id=$1 and member_id=$2 and owner_id=auth.uid() and term_months=$4;
+ return true;
 end $$;
 revoke all on function public.approve_subscription_coverage(uuid,uuid,uuid,integer) from public,anon;
 grant execute on function public.approve_subscription_coverage(uuid,uuid,uuid,integer) to authenticated;
@@ -172,7 +178,7 @@ language sql stable security definer set search_path = '' as $$
       'interval', p.document->'plan'->>'interval',
       'upiId', p.document->'plan'->>'upiId', 'payeeName', p.document->'plan'->>'payeeName'
     ),
-    'member', jsonb_strip_nulls(jsonb_build_object('id', m.value->>'id', 'name', m.value->>'name', 'joinedDate', m.value->>'joinedDate', 'preferredMonths',s.preferred_months)),
+    'member', jsonb_strip_nulls(jsonb_build_object('id', m.value->>'id', 'name', m.value->>'name', 'joinedDate', m.value->>'joinedDate', 'preferredMonths',s.preferred_months,'requestedMonths',s.requested_months,'requestedAt',s.preference_at)),
     'groupMembers', coalesce((select jsonb_agg(jsonb_build_object('firstName',split_part(regexp_replace(btrim(gm.value->>'name'),'[[:space:]]+',' ','g'),' ',1))) from jsonb_array_elements(p.document->'members') gm(value) where gm.value->>'active'='true'),'[]'::jsonb),
     'credits', coalesce((select jsonb_agg(jsonb_build_object('id',credit.value->>'id','amountMinor',credit.value->'amountMinor','remainingMinor',credit.value->'remainingMinor','currency',credit.value->>'currency','date',credit.value->>'date','startDate',credit.value->>'startDate','endDate',credit.value->>'endDate')) from jsonb_array_elements(coalesce(p.document->'credits','[]'::jsonb)) credit(value) where credit.value->>'memberId'=s.member_id::text),'[]'::jsonb),
     'cycles', coalesce((

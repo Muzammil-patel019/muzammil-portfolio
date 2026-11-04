@@ -508,6 +508,15 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
         .amountMinor,
       39850,
     );
+    assert.equal((await view(hash("plan-a")))?.member.requestedMonths, 3);
+    // Opening a different payment term must not replace a pending preference.
+    await asUser(
+      "anon",
+      "",
+      "select public.report_subscription_coverage($1,$2,'opened',6)",
+      [hash("plan-a"), cycle.id],
+    );
+    assert.equal((await view(hash("plan-a")))?.member.requestedMonths, 3);
     await assert.rejects(
       asUser(
         "anon",
@@ -523,6 +532,17 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
       [firstPlan, alice, cycle.id],
     );
     assert.equal((await view(hash("plan-a")))?.member.preferredMonths, 3);
+    assert.equal(
+      (await view(hash("plan-a")))?.member.requestedMonths,
+      undefined,
+    );
+    await asUser(
+      "anon",
+      "",
+      "select public.report_subscription_coverage($1,$2,'preference',6)",
+      [hash("plan-a"), cycle.id],
+    );
+
     await asUser(
       "anon",
       "",
@@ -555,6 +575,8 @@ test("subscription SQL isolates owners and exposes only the linked member, with 
       (saved.rows[0] as { result: { revision: number } }).result.revision,
       2,
     );
+    assert.equal((await view(hash("plan-a")))?.member.requestedMonths, 6);
+    assert.equal((await view(hash("plan-a")))?.member.preferredMonths, 3);
     const stale = await asUser(
       "authenticated",
       owner,

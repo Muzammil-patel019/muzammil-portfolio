@@ -112,3 +112,70 @@ export function applyAdvanceCredit(
     }
   }
 }
+
+export const coverageLabel = (months?: number) =>
+  coverageOptions.find((option) => option.months === months)?.label ||
+  "Not selected";
+type CoverageCycle = {
+  startDate: string;
+  renewalDate: string;
+  currency: string;
+  amountMinor: number;
+  payments: { amountMinor: number }[];
+};
+type CoverageCredit = {
+  amountMinor: number;
+  startDate: string;
+  endDate: string;
+  currency: string;
+};
+/** Confirmed money supports whole months only. Never infer coverage from a preference. */
+export function confirmedCoverage(
+  cycles: CoverageCycle[],
+  credits: CoverageCredit[],
+  currentStart: string,
+) {
+  const periods: { startDate: string; endDate: string; currency: string }[] =
+    [];
+  for (const cycle of cycles) {
+    if (cycle.amountMinor <= 0) continue;
+    const extra = credits.filter(
+      (c) => c.startDate === cycle.startDate && c.currency === cycle.currency,
+    );
+    const funded =
+      paidTotal(cycle) + extra.reduce((sum, c) => sum + c.amountMinor, 0);
+    const baseMonths = coverageQuote(cycle, 1).baseMonths;
+    const months = Math.min(
+      1200,
+      Math.floor((funded * baseMonths) / cycle.amountMinor),
+    );
+    if (months < baseMonths) continue;
+    const limit = extra.reduce(
+      (end, c) => (c.endDate > end ? c.endDate : end),
+      cycle.renewalDate,
+    );
+    const fundedEnd = cycleDates(cycle.startDate, "monthly", months).startDate;
+    periods.push({
+      startDate: cycle.startDate,
+      endDate: fundedEnd < limit ? fundedEnd : limit,
+      currency: cycle.currency,
+    });
+  }
+  periods.sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const merged: typeof periods = [];
+  for (const period of periods) {
+    const previous = merged.at(-1);
+    if (
+      previous &&
+      previous.currency === period.currency &&
+      previous.endDate >= period.startDate
+    ) {
+      if (period.endDate > previous.endDate) previous.endDate = period.endDate;
+    } else merged.push({ ...period });
+  }
+  return (
+    merged.find(
+      (p) => p.startDate <= currentStart && p.endDate > currentStart,
+    ) || null
+  );
+}
