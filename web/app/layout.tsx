@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Metadata } from "next";
 import "./globals.css";
 import "./refinement.css";
@@ -8,8 +9,9 @@ export const metadata: Metadata = {
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <head><link rel="stylesheet" href="/theme.css"/><script src="/theme.js" /></head>
+      <body>{children}<ThemeToggle /></body>
     </html>
   );
 }

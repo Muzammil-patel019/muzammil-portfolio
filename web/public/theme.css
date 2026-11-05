@@ -1,0 +1,44 @@
+.theme-toggle { position:fixed;right:18px;bottom:18px;z-index:80;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:9px 16px;border:1px solid #c8c5ce;border-radius:30px;background:#fffdf7;color:#302b3b;box-shadow:0 3px 18px #00000012;font:600 12px/1.5 Arial,sans-serif;cursor:pointer; }
+.theme-toggle:focus-visible { outline:3px solid #aa92ed;outline-offset:3px; }
+body:has(.studio-actionbar) .theme-toggle { bottom:90px; }
+@media screen {
+body:has(.theme-toggle) { padding-bottom:72px; }
+html[data-theme=dark] { color-scheme:dark;--paper:#17171d;--ink:#eeeaf5;--muted:#b6b0c2;--line:#45414e;--accent:#b9a2ff;color:#eeeaf5;background:#17171d; }
+html[data-theme=dark] body { background:#17171d;color:#eeeaf5; }
+html[data-theme=dark] .theme-toggle { background:#2c2934;color:#f0eafa;border-color:#655c73; }
+html[data-theme=dark] :is(.studio,.learning-shell) { background:#17171d;color:#eeeaf5; }
+html[data-theme=dark] :is(.panel,.card,.contact-card,.test-study,.study-art,.work-showcase,.showcase-card,.showcase-art,.case-study,.project-filter,.studio-actionbar,.studio-preview-heading,.studio-preview-scroll,.learning-topbar,.visual-step,.visual-explanation,.dashboard>div,.streak-card,.lesson-goal,.terms,.prediction-game,.workshop,.video-card,.analogy,.correct-card,article#lesson,nav#lessons) { background:#25232d;color:#eeeaf5;border-color:#484151; }
+html[data-theme=dark] :is(.intro,.hero-line,.card p,.card ul,.contact-intro,.employer p,.panel p,.study-caption p,.study-foot,.meta,.storage-note,.dashboard span,.studio-preview-heading p) { color:#beb7cb; }
+html[data-theme=dark] :is(.eyebrow,h1 em,.section-heading em,.brand span,.headline-dot) { color:#baa1f3; }
+html[data-theme=dark] :is(input,textarea,select,.studio input,.studio textarea,.studio select) { background:#211f29;color:#eeeaf5;border-color:#5b5269; }
+html[data-theme=dark] :is(button,.button.secondary,.studio button,.study-views button,.option,.game-options button) { background:#302b3c;color:#f0e9fc;border-color:#655b75; }
+html[data-theme=dark] :is(.button,.studio .primary,button[aria-pressed=true]) { background:#b9a2ff;color:#211632;border-color:#b9a2ff; }
+html[data-theme=dark] :is(.tags span,.skill-badge,.skill-tag,[class*="bg-violet-100"]) { background:#342a48;color:#e1cffb;border-color:#5f4d77; }
+html[data-theme=dark] .site-header nav { background:#17171d; }
+html[data-theme=dark] :is(.plan-app,.plan-viewer) { --plan-ink:#e6f0e7;--plan-muted:#b2c3b9;--plan-line:#3c5148;color:var(--plan-ink); }
+html[data-theme=dark] .plan-app :is(.plan-box,.plan-summary>div,.plan-collection,.plan-member-toolbar,.plan-payment-review,.plan-schedule-card,.plan-invite-strip,.plan-share-result,.plan-member-cycle .plan-mini-totals) { background:#202c27;color:#e6f0e7;border-color:#3c5148; }
+html[data-theme=dark] .plan-app :is(button,input,select,textarea,.coverage-card,.plan-view-tabs) { background:#283b31;color:#e6f0e7;border-color:#546d5b; }
+html[data-theme=dark] .plan-app :is(.plan-button,button[aria-pressed=true],.coverage-card[data-selected=true],.plan-view-tabs button[aria-pressed=true]) { background:#c7df9b;color:#1c3222;border-color:#c7df9b; }
+html[data-theme=dark] .plan-app .coverage-card[data-selected=true] :is(small,.coverage-card-date) { color:#344c31; }
+html[data-theme=dark] .plan-app :is(.plan-label,p,small,.coverage-card-date,.plan-member-meta,.plan-footer,.plan-collection-meter span) { color:#b7cbbd; }
+html[data-theme=dark] .plan-app :is(.plan-credit,.plan-notice,.plan-banner,.plan-request-state,.plan-view-tabs) { background:#2b3c2b;color:#dceacb;border-color:#566949; }
+html[data-theme=dark] .plan-app :is(.plan-badge,.plan-person-avatar,.plan-group-members li>span,.plan-selected-term strong) { background:#344e39;color:#d6eac3;border-color:#628455; }
+html[data-theme=dark] .plan-app .plan-personal-summary { background:#163d32;color:#f4f9eb;border:1px solid #456b56; }
+html[data-theme=dark] .plan-app .plan-brand { color:#e6f0e7; }
+html[data-theme=dark] .plan-app .plan-summary>div:last-child { background:#173d30; }
+html[data-theme=dark] .plan-app :is(.plan-activity-grid>button,.plan-activity-legend i) { background:#344237;border-color:#4a5b4d; }
+html[data-theme=dark] .plan-app .plan-activity-grid>button[data-paid=true] { background:#83bc70;border-color:#83bc70; }
+html[data-theme=dark] .plan-app :is(.plan-status,.plan-link-options>summary) { color:#d5c699!important; }
+html[data-theme=dark] :is(.course-video,.hero aside,.trace-state,.terms li,.visual-step,.streak-card,.video-card,.workshop,.game-round) { background:#292536;color:#ede6fa;border-color:#5e4c77; }
+html[data-theme=dark] :is(.trace-code,pre,code) { background:#14161d;color:#dce5f3; }
+html[data-theme=dark] :is(.showcase-description,.showcase-date,.showcase-category,.showcase-process,.showcase-tools,.study-label,.coordinate) { color:#c9bfd9; }
+html[data-theme=dark] :is(.showcase-tools span,.showcase-picker,.trace-controls,.terms) { background:#302b3c;color:#ece4f8;border-color:#655b75; }
+html[data-theme=dark] :is(.studio-preview-column,.toolbar,#week span,.terms) { background:#25232d;color:#eeeaf5;border-color:#484151; }
+html[data-theme=dark] .plan-app :is(.plan-payment-form,.plan-inline-receipt>td,.plan-date-strip) { background:#25382e;color:#e6f0e7; }
+html[data-theme=dark] .plan-app :is(.plan-credit,.plan-older-balance) { background:#2b3c2b!important;color:#deebcc!important; }
+html[data-theme=dark] .plan-app button.plan-member-copy { color:#d5e8d3; }
+/* Resumes stay faithful to the downloadable document in both themes. */
+html[data-theme=dark] .resume-preview { color-scheme:light;background:white;color:#202124; }
+html[data-theme=dark] .resume-preview { --ink:#222b38;--muted:#555;--line:#ccc;--accent:#5540c6; }
+}
+@media print { .theme-toggle { display:none!important; } html[data-theme=dark],html[data-theme=dark] body { color-scheme:light;background:white;color:#202124;--paper:white;--ink:#202124;--muted:#555;--line:#ccc; } }
