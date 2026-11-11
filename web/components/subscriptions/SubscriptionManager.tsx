@@ -399,6 +399,12 @@ export function SubscriptionManager() {
           <span className="plan-label">
             {demo ? "DEMO · SESSION ONLY" : "MANAGER SPACE"}
           </span>
+          <a
+            className="plan-text-link"
+            href={demo ? "/cards?demo=1" : "/cards"}
+          >
+            Cards ↗
+          </a>
           {!demo && (
             <button onClick={() => void db?.auth.signOut()}>Sign out</button>
           )}
