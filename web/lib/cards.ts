@@ -301,3 +301,55 @@ export function parseCardMoney(input: string) {
     throw new Error("The amount exceeds the tracker limit.");
   return minor;
 }
+
+export function expectedCardStatement(
+  card: Pick<Card, "statementDay">,
+  today = todayIST(),
+) {
+  const d = new Date(today + "T00:00:00Z");
+  let month = d.getUTCMonth();
+  const year = d.getUTCFullYear();
+  if (monthDate(year, month, card.statementDay) > today) month--;
+  return monthDate(year, month, card.statementDay);
+}
+export function cardPaymentLog(doc: CardsDocument) {
+  return doc.statements
+    .flatMap((bill) =>
+      bill.payments.map((payment) => ({
+        ...payment,
+        cardId: bill.cardId,
+        cardName: doc.cards.find((c) => c.id === bill.cardId)!.name,
+        last4: doc.cards.find((c) => c.id === bill.cardId)!.last4,
+        statementDate: bill.date,
+        dueDate: bill.dueDate,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        b.statementDate.localeCompare(a.statementDate),
+    );
+}
+export function cardPaymentsCSV(doc: CardsDocument) {
+  const cell = (v: string) =>
+    '"' + (/^[\s]*[=+\-@]/.test(v) ? "'" : "") + v.replaceAll('"', '""') + '"';
+  const rows = [
+    [
+      "Card",
+      "Last four",
+      "Payment date",
+      "Amount INR",
+      "Statement date",
+      "Note",
+    ],
+    ...cardPaymentLog(doc).map((p) => [
+      p.cardName,
+      p.last4,
+      p.date,
+      (p.amountMinor / 100).toFixed(2),
+      p.statementDate,
+      p.note,
+    ]),
+  ];
+  return "\uFEFF" + rows.map((r) => r.map(cell).join(",")).join("\r\n");
+}

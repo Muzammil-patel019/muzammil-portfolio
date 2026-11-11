@@ -6,6 +6,9 @@ import { browserClient } from "@/lib/supabase";
 import { daysUntil, todayIST } from "@/lib/subscriptions";
 import {
   parseCardMoney as parseMoney,
+  expectedCardStatement,
+  cardPaymentLog,
+  cardPaymentsCSV,
   cardSchema,
   cardsDocumentSchema,
   emptyCards,
@@ -64,6 +67,20 @@ export function CardsManager() {
   const [selected, setSelected] = useState(""),
     [view, setView] = useState<"overview" | "history" | "archived">("overview"),
     [query, setQuery] = useState("");
+  const [walletFilter, setWalletFilter] = useState("all");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMode, setPaymentMode] = useState<"full" | "minimum" | "custom">(
+    "custom",
+  );
+  const [historyMode, setHistoryMode] = useState<"bills" | "payments">("bills");
+  const [historyMonth, setHistoryMonth] = useState("");
+  const [receipt, setReceipt] = useState<{
+    card: string;
+    last4: string;
+    amount: number;
+    date: string;
+    remaining: number;
+  } | null>(null);
   const [form, setForm] = useState<"card" | "statement" | "payment" | null>(
       null,
     ),
@@ -109,6 +126,7 @@ export function CardsManager() {
         setForm(null);
         setLoaded(false);
         setAuth("signedout");
+        setReceipt(null);
       }
       if (r.status === 409) setConflict(true);
       throw new Error(result.error || "Could not save. Please try again.");
@@ -148,6 +166,7 @@ export function CardsManager() {
     if (demo) return;
     if (!db) {
       setAuth("signedout");
+      setReceipt(null);
       return;
     }
     let active = true;
@@ -156,6 +175,7 @@ export function CardsManager() {
       if (id === currentUser.current && event !== "INITIAL_SESSION") return;
       currentUser.current = id;
       authGeneration.current++;
+      setReceipt(null);
       setAuth(id ? "signedin" : "signedout");
       setDoc(emptyCards());
       setForm(null);
@@ -204,14 +224,7 @@ export function CardsManager() {
       setBusy(false);
     }
   }
-  const chosen =
-    doc.cards.find(
-      (c) =>
-        c.id === selected &&
-        (view === "history" || c.archived === (view === "archived")),
-    ) || doc.cards.find((c) => c.archived === (view === "archived"));
-  const activeCards = doc.cards.filter((c) => !c.archived),
-    latest = chosen ? latestCardBill(doc, chosen.id) : undefined;
+  const activeCards = doc.cards.filter((c) => !c.archived);
   const latestBills = activeCards
     .map((c) => ({ card: c, bill: latestCardBill(doc, c.id) }))
     .filter((x): x is { card: Card; bill: CardStatement } => !!x.bill);
@@ -223,24 +236,90 @@ export function CardsManager() {
       (n, x) => n + statementBalance(x.bill),
       0,
     );
+  const paymentLog = cardPaymentLog(doc);
+  const filteredPayments = paymentLog.filter(
+    (p) =>
+      (!selected || p.cardId === selected) &&
+      (!historyMonth || p.date.startsWith(historyMonth)),
+  );
+  const monthOptions = [...new Set(paymentLog.map((p) => p.date.slice(0, 7)))]
+    .sort()
+    .reverse();
+  const paidThisMonth = paymentLog
+    .filter((p) => p.date.startsWith(todayIST().slice(0, 7)))
+    .reduce((n, p) => n + p.amountMinor, 0);
+  const overdue = dueBills.filter((x) => daysUntil(x.bill.dueDate) < 0);
+  const dueSoon = dueBills.filter(
+    (x) => daysUntil(x.bill.dueDate) >= 0 && daysUntil(x.bill.dueDate) <= 7,
+  );
+  const statementChecks = activeCards.filter((c) => {
+    const bill = latestCardBill(doc, c.id);
+    return !bill || bill.date < expectedCardStatement(c);
+  });
+  function matchesWallet(card: Card) {
+    const bill = latestCardBill(doc, card.id);
+    return (
+      walletFilter === "all" ||
+      (walletFilter === "no-bill"
+        ? !bill
+        : !!bill &&
+          (walletFilter === "settled"
+            ? statementBalance(bill) === 0
+            : walletFilter === "overdue"
+              ? statementBalance(bill) > 0 && daysUntil(bill.dueDate) < 0
+              : walletFilter === "soon"
+                ? statementBalance(bill) > 0 &&
+                  daysUntil(bill.dueDate) >= 0 &&
+                  daysUntil(bill.dueDate) <= 7
+                : statementBalance(bill) > 0))
+    );
+  }
   const visibleCards = doc.cards.filter(
     (c) =>
       (view === "archived" ? c.archived : !c.archived) &&
+      matchesWallet(c) &&
       `${c.name} ${c.issuer} ${c.last4}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
+  const chosen =
+    view === "history"
+      ? doc.cards.find((c) => c.id === selected) || doc.cards[0]
+      : visibleCards.find((c) => c.id === selected) || visibleCards[0];
+  const latest = chosen ? latestCardBill(doc, chosen.id) : undefined;
   const bills = doc.statements
     .filter((s) => !selected || s.cardId === selected)
     .sort((a, b) => b.date.localeCompare(a.date));
   const billForPayment = doc.statements.find((b) => b.id === paymentBill);
   const locked = busy || conflict;
+  function beginPayment(
+    bill: CardStatement,
+    mode: "full" | "minimum" | "custom" = "custom",
+  ) {
+    setSelected(bill.cardId);
+    setPaymentBill(bill.id);
+    setPaymentMode(mode);
+    setPaymentAmount(
+      (
+        (mode === "minimum"
+          ? Math.max(0, bill.minimumMinor - statementPaid(bill))
+          : statementBalance(bill)) / 100
+      ).toFixed(2),
+    );
+    setForm("payment");
+    setMessage("");
+    setReceipt(null);
+  }
   function beginCard(card: Card | null = null) {
+    setReceipt(null);
     setEditCard(card);
     setForm("card");
     setMessage("");
   }
   function beginBill(bill: CardStatement | null = null) {
+    setReceipt(null);
+    setWalletFilter("all");
+    setQuery("");
     setEditBill(bill);
     setForm("statement");
     setMessage("");
@@ -361,6 +440,55 @@ export function CardsManager() {
               </small>
             </div>
           </section>
+          {receipt && (
+            <section className="cards-receipt" aria-label="Payment recorded">
+              <span aria-hidden="true">✓</span>
+              <div>
+                <p className="cards-kicker">PAYMENT RECORDED</p>
+                <h2>
+                  {receipt.remaining === 0
+                    ? "This bill is paid in full."
+                    : "Payment added to your history."}
+                </h2>
+                <p>
+                  {receipt.card} • {receipt.last4} · {cardMoney(receipt.amount)}{" "}
+                  · {cardDate(receipt.date)}
+                </p>
+                <small>
+                  {receipt.remaining === 0
+                    ? "No remaining balance on this statement."
+                    : `${cardMoney(receipt.remaining)} still outstanding.`}
+                </small>
+              </div>
+              <button onClick={() => setReceipt(null)}>Dismiss receipt</button>
+            </section>
+          )}
+          {activeCards.length > 0 && (
+            <section className="cards-attention" aria-label="Bill attention">
+              <button
+                onClick={() => {
+                  setView("overview");
+                  setWalletFilter("overdue");
+                }}
+              >
+                <strong>{overdue.length}</strong>
+                <span>Overdue</span>
+              </button>
+              <button
+                onClick={() => {
+                  setView("overview");
+                  setWalletFilter("soon");
+                }}
+              >
+                <strong>{dueSoon.length}</strong>
+                <span>Due within 7 days</span>
+              </button>
+              <div>
+                <strong>{cardMoney(paidThisMonth)}</strong>
+                <span>Payments recorded this month</span>
+              </div>
+            </section>
+          )}
           <nav className="cards-view-tabs" aria-label="Cards sections">
             {(["overview", "history", "archived"] as const).map((tab) => (
               <button
@@ -634,6 +762,10 @@ export function CardsManager() {
                 Statement {cardDate(billForPayment.date)} ·{" "}
                 {cardMoney(statementBalance(billForPayment))} remaining
               </p>
+              <p className="cards-note">
+                Already paid through your bank? Confirm the amount and date
+                below. This action only updates your tracker.
+              </p>
               <form
                 key={billForPayment.id}
                 onSubmit={(e) => {
@@ -649,19 +781,90 @@ export function CardsManager() {
                         String(f.get("note") || ""),
                       ),
                     );
+                    const card = doc.cards.find(
+                      (c) => c.id === billForPayment.cardId,
+                    )!;
+                    const amount = parseMoney(String(f.get("amount")));
+                    setReceipt({
+                      card: card.name,
+                      last4: card.last4,
+                      amount,
+                      date: String(f.get("date")),
+                      remaining: statementBalance(billForPayment) - amount,
+                    });
                     setForm(null);
                   });
                 }}
               >
+                <div
+                  className="cards-payment-presets"
+                  aria-label="Payment amount shortcuts"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={paymentMode === "full"}
+                    onClick={() => {
+                      setPaymentMode("full");
+                      setPaymentAmount(
+                        (statementBalance(billForPayment) / 100).toFixed(2),
+                      );
+                    }}
+                  >
+                    Full balance{" "}
+                    <strong>
+                      {cardMoney(statementBalance(billForPayment))}
+                    </strong>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      billForPayment.minimumMinor <=
+                      statementPaid(billForPayment)
+                    }
+                    aria-pressed={paymentMode === "minimum"}
+                    onClick={() => {
+                      setPaymentMode("minimum");
+                      setPaymentAmount(
+                        (
+                          Math.max(
+                            0,
+                            billForPayment.minimumMinor -
+                              statementPaid(billForPayment),
+                          ) / 100
+                        ).toFixed(2),
+                      );
+                    }}
+                  >
+                    Minimum remaining{" "}
+                    <strong>
+                      {cardMoney(
+                        Math.max(
+                          0,
+                          billForPayment.minimumMinor -
+                            statementPaid(billForPayment),
+                        ),
+                      )}
+                    </strong>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={paymentMode === "custom"}
+                    onClick={() => setPaymentMode("custom")}
+                  >
+                    Custom amount
+                  </button>
+                </div>
                 <div className="cards-fields">
                   <Field label="Amount paid (INR)">
                     <input
                       name="amount"
                       inputMode="decimal"
                       required
-                      defaultValue={(
-                        statementBalance(billForPayment) / 100
-                      ).toFixed(2)}
+                      value={paymentAmount}
+                      onChange={(e) => {
+                        setPaymentAmount(e.target.value);
+                        setPaymentMode("custom");
+                      }}
                     />
                   </Field>
                   <Field label="Payment date">
@@ -684,7 +887,9 @@ export function CardsManager() {
                   </Field>
                 </div>
                 <button className="cards-button" disabled={locked}>
-                  Save payment
+                  {paymentMode === "full"
+                    ? "Confirm full payment"
+                    : "Save payment"}
                 </button>
               </form>
             </section>
@@ -704,6 +909,24 @@ export function CardsManager() {
                     placeholder="Name, bank or last four"
                   />
                 </label>
+              </div>
+              <div className="cards-wallet-filters" aria-label="Filter cards">
+                {[
+                  { value: "all", label: "All cards" },
+                  { value: "unpaid", label: "Outstanding" },
+                  { value: "overdue", label: "Overdue" },
+                  { value: "soon", label: "Due this week" },
+                  { value: "settled", label: "Paid" },
+                  { value: "no-bill", label: "No statement" },
+                ].map((filter) => (
+                  <button
+                    key={filter.value}
+                    aria-pressed={walletFilter === filter.value}
+                    onClick={() => setWalletFilter(filter.value)}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
               </div>
               <section className="cards-wallet" aria-label="Your cards">
                 {visibleCards.map((c) => {
@@ -842,11 +1065,16 @@ export function CardsManager() {
                             className="cards-button"
                             disabled={locked || statementBalance(latest) === 0}
                             onClick={() => {
-                              setPaymentBill(latest.id);
-                              setForm("payment");
+                              beginPayment(latest);
                             }}
                           >
                             Record payment
+                          </button>
+                          <button
+                            disabled={locked || !statementBalance(latest)}
+                            onClick={() => beginPayment(latest, "full")}
+                          >
+                            Mark bill paid
                           </button>
                           <button
                             disabled={!statementBalance(latest)}
@@ -978,9 +1206,7 @@ export function CardsManager() {
                       className="cards-queue-row"
                       key={bill.id}
                       onClick={() => {
-                        setSelected(card.id);
-                        setPaymentBill(bill.id);
-                        setForm("payment");
+                        beginPayment(bill);
                       }}
                     >
                       <span>
@@ -1024,95 +1250,159 @@ export function CardsManager() {
                   </select>
                 </label>
               </div>
-              {!bills.length && (
-                <p className="cards-empty">
-                  No statements recorded for this selection.
-                </p>
-              )}
-              {bills.map((bill) => {
-                const card = doc.cards.find((c) => c.id === bill.cardId)!;
-                return (
-                  <article className="cards-history-bill" key={bill.id}>
-                    <div className="cards-section-head">
+              <div className="cards-history-controls">
+                <div className="cards-wallet-filters">
+                  <button
+                    aria-pressed={historyMode === "bills"}
+                    onClick={() => setHistoryMode("bills")}
+                  >
+                    Statements
+                  </button>
+                  <button
+                    aria-pressed={historyMode === "payments"}
+                    onClick={() => setHistoryMode("payments")}
+                  >
+                    Payment log
+                  </button>
+                </div>
+                {historyMode === "payments" && (
+                  <label className="cards-search">
+                    Payment month
+                    <select
+                      value={historyMonth}
+                      onChange={(e) => setHistoryMonth(e.target.value)}
+                    >
+                      <option value="">All months</option>
+                      {monthOptions.map((month) => (
+                        <option key={month} value={month}>
+                          {month}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+              {historyMode === "payments" && (
+                <div className="cards-payment-log">
+                  {!filteredPayments.length && (
+                    <p className="cards-empty">
+                      No payments recorded for this selection.
+                    </p>
+                  )}
+                  {filteredPayments.map((payment) => (
+                    <article
+                      key={payment.cardId + payment.statementDate + payment.id}
+                    >
+                      <span className="cards-log-check" aria-hidden="true">
+                        ✓
+                      </span>
                       <div>
                         <h3>
-                          {card.name} · {card.last4}
+                          {payment.cardName} • {payment.last4}
                         </h3>
                         <p>
-                          Statement {cardDate(bill.date)} · Due{" "}
-                          {cardDate(bill.dueDate)}
+                          {cardDate(payment.date)} · Statement{" "}
+                          {cardDate(payment.statementDate)}
                         </p>
+                        {payment.note && <small>{payment.note}</small>}
                       </div>
-                      <span className="cards-bill-state">{dueText(bill)}</span>
-                    </div>
-                    <dl className="cards-facts">
-                      <div>
-                        <dt>Total billed</dt>
-                        <dd>{cardMoney(bill.totalMinor)}</dd>
+                      <strong>{cardMoney(payment.amountMinor)}</strong>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <div hidden={historyMode !== "bills"}>
+                {!bills.length && (
+                  <p className="cards-empty">
+                    No statements recorded for this selection.
+                  </p>
+                )}
+                {bills.map((bill) => {
+                  const card = doc.cards.find((c) => c.id === bill.cardId)!;
+                  return (
+                    <article className="cards-history-bill" key={bill.id}>
+                      <div className="cards-section-head">
+                        <div>
+                          <h3>
+                            {card.name} · {card.last4}
+                          </h3>
+                          <p>
+                            Statement {cardDate(bill.date)} · Due{" "}
+                            {cardDate(bill.dueDate)}
+                          </p>
+                        </div>
+                        <span className="cards-bill-state">
+                          {dueText(bill)}
+                        </span>
                       </div>
-                      <div>
-                        <dt>Still outstanding</dt>
-                        <dd>{cardMoney(statementBalance(bill))}</dd>
-                      </div>
-                    </dl>
-                    <ol className="cards-payment-history">
-                      {bill.payments.map((payment) => (
-                        <li key={payment.id}>
-                          <span>
-                            <strong>{cardMoney(payment.amountMinor)}</strong>
-                            <small>
-                              {cardDate(payment.date)}
-                              {payment.note ? " · " + payment.note : ""}
-                            </small>
-                          </span>
-                          <button
-                            disabled={locked}
-                            onClick={() =>
-                              void act(async () => {
-                                if (
-                                  !confirm(
-                                    "Remove this recorded payment? The bill balance will increase. This does not reverse a bank payment.",
+                      <dl className="cards-facts">
+                        <div>
+                          <dt>Total billed</dt>
+                          <dd>{cardMoney(bill.totalMinor)}</dd>
+                        </div>
+                        <div>
+                          <dt>Still outstanding</dt>
+                          <dd>{cardMoney(statementBalance(bill))}</dd>
+                        </div>
+                      </dl>
+                      <ol className="cards-payment-history">
+                        {bill.payments.map((payment) => (
+                          <li key={payment.id}>
+                            <span>
+                              <strong>{cardMoney(payment.amountMinor)}</strong>
+                              <small>
+                                {cardDate(payment.date)}
+                                {payment.note ? " · " + payment.note : ""}
+                              </small>
+                            </span>
+                            <button
+                              disabled={locked}
+                              onClick={() =>
+                                void act(async () => {
+                                  if (
+                                    !confirm(
+                                      "Remove this recorded payment? The bill balance will increase. This does not reverse a bank payment.",
+                                    )
                                   )
-                                )
-                                  return;
-                                const next = copy(doc);
-                                next.statements.find(
-                                  (s) => s.id === bill.id,
-                                )!.payments = bill.payments.filter(
-                                  (p) => p.id !== payment.id,
-                                );
-                                await save(next);
-                              })
-                            }
-                          >
-                            Correct / remove
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                    <div className="cards-actions">
-                      <button
-                        disabled={locked || !statementBalance(bill)}
-                        onClick={() => {
-                          setPaymentBill(bill.id);
-                          setForm("payment");
-                        }}
-                      >
-                        Record payment
-                      </button>
-                      <button
-                        disabled={locked}
-                        onClick={() => {
-                          setSelected(card.id);
-                          beginBill(bill);
-                        }}
-                      >
-                        Edit statement
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+                                    return;
+                                  const next = copy(doc);
+                                  next.statements.find(
+                                    (s) => s.id === bill.id,
+                                  )!.payments = bill.payments.filter(
+                                    (p) => p.id !== payment.id,
+                                  );
+                                  await save(next);
+                                })
+                              }
+                            >
+                              Correct / remove
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
+                      <div className="cards-actions">
+                        <button
+                          disabled={locked || !statementBalance(bill)}
+                          onClick={() => {
+                            beginPayment(bill);
+                          }}
+                        >
+                          Record payment
+                        </button>
+                        <button
+                          disabled={locked}
+                          onClick={() => {
+                            setSelected(card.id);
+                            beginBill(bill);
+                          }}
+                        >
+                          Edit statement
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
               <p className="cards-note">
                 Older statements may carry into later bills. Totals on the
                 dashboard use only each card’s latest statement to avoid adding
@@ -1120,7 +1410,46 @@ export function CardsManager() {
               </p>
             </section>
           )}
+          {view === "overview" && statementChecks.length > 0 && (
+            <section className="cards-panel cards-statement-checks">
+              <p className="cards-kicker">CHECK YOUR BANK APP</p>
+              <h2>Ready for a new statement?</h2>
+              <p className="cards-note">
+                These are estimates from your saved schedule. Confirm that a
+                bill was issued before recording it.
+              </p>
+              {statementChecks.map((card) => (
+                <div key={card.id}>
+                  <span>
+                    <strong>
+                      {card.name} • {card.last4}
+                    </strong>
+                    <small>
+                      Expected around {cardDate(expectedCardStatement(card))}
+                    </small>
+                  </span>
+                  <button
+                    disabled={locked}
+                    onClick={() => {
+                      setSelected(card.id);
+                      beginBill();
+                    }}
+                  >
+                    Record bill for {card.name}
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
           <div className="cards-bottom-actions">
+            <button
+              disabled={!paymentLog.length}
+              onClick={() =>
+                downloadCards(cardPaymentsCSV(doc), "card-payments.csv")
+              }
+            >
+              Export payments
+            </button>
             <button
               disabled={!doc.statements.length}
               onClick={() =>

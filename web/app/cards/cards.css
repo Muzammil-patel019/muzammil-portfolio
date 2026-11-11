@@ -603,3 +603,232 @@
   text-decoration: none;
   color: var(--cc-text);
 }
+.cards-attention {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  gap: 12px;
+  margin: 20px 0;
+}
+.cards-attention > div,
+.cards-app .cards-attention > button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 12px;
+  padding: 16px 20px;
+  background: var(--cc-surface);
+  text-align: left;
+}
+.cards-attention strong {
+  font-size: 23px;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+}
+.cards-attention span {
+  font-size: 11px;
+  color: var(--cc-muted);
+}
+.cards-attention > button:first-child strong {
+  color: #b96848;
+}
+.cards-wallet-filters {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 0 0 20px;
+}
+.cards-app .cards-wallet-filters button {
+  border-radius: 25px;
+  font-size: 11px;
+  min-height: 36px;
+  padding: 7px 13px;
+}
+.cards-wallet-filters button[aria-pressed="true"] {
+  background: var(--cc-accent);
+  color: var(--cc-surface);
+  border-color: var(--cc-accent);
+}
+.cards-payment-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 24px 0;
+}
+.cards-app .cards-payment-presets button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  font-weight: 400;
+  font-size: 11px;
+  gap: 5px;
+  padding: 14px;
+}
+.cards-payment-presets button strong {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+.cards-payment-presets button[aria-pressed="true"] {
+  border-color: #6b8e56;
+  background: var(--cc-soft);
+  box-shadow: 0 0 0 1px #6b8e56;
+  color: var(--cc-text);
+}
+.cards-receipt {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #b1c89d;
+  background: var(--cc-soft);
+  margin: 22px 0;
+}
+.cards-receipt > span {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #d4e8b5;
+  color: #325527;
+  font-size: 20px;
+}
+.cards-receipt > div {
+  flex: 1;
+}
+.cards-receipt h2 {
+  font-size: 23px;
+  margin: 4px 0 8px;
+}
+.cards-receipt p {
+  font-size: 12px;
+  margin: 0 0 5px;
+}
+.cards-receipt small {
+  font-size: 11px;
+  color: var(--cc-muted);
+}
+.cards-history-controls {
+  display: flex;
+  gap: 20px;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin: 15px 0 25px;
+}
+.cards-payment-log > article {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+  border-top: 1px solid var(--cc-line);
+}
+.cards-payment-log article > div {
+  flex: 1;
+  min-width: 0;
+}
+.cards-payment-log h3 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+.cards-payment-log p,
+.cards-payment-log small {
+  font-size: 11px;
+  margin: 0;
+  color: var(--cc-muted);
+}
+.cards-payment-log article > strong {
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+.cards-log-check {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--cc-soft);
+  color: var(--cc-text);
+}
+.cards-statement-checks > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--cc-line);
+}
+.cards-statement-checks small {
+  display: block;
+  font-size: 11px;
+  color: var(--cc-muted);
+  margin-top: 4px;
+}
+@media (max-width: 650px) {
+  .cards-attention {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cards-attention > div {
+    grid-column: 1/-1;
+  }
+  .cards-attention > div,
+  .cards-app .cards-attention > button {
+    padding: 14px;
+  }
+  .cards-receipt {
+    gap: 12px;
+    padding: 20px;
+    flex-wrap: wrap;
+  }
+  .cards-receipt > button {
+    margin-left: 52px;
+  }
+  .cards-receipt h2 {
+    font-size: 20px;
+  }
+  .cards-payment-presets {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cards-payment-presets > button:last-child {
+    grid-column: 1/-1;
+  }
+  .cards-statement-checks > div {
+    align-items: start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cards-payment-log > article {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .cards-payment-log article > strong {
+    font-size: 16px;
+  }
+  .cards-payment-log .cards-log-check {
+    width: 23px;
+    height: 23px;
+  }
+}
+@media (max-width: 650px) {
+  .cards-app .cards-receipt {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .cards-receipt > span {
+    width: 32px;
+    height: 32px;
+  }
+  .cards-receipt > div {
+    min-width: 0;
+  }
+  .cards-receipt > button {
+    grid-column: 2;
+    justify-self: start;
+    margin-left: 0;
+  }
+}
