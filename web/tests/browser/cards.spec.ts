@@ -126,3 +126,69 @@ test("card bills track minimum and full receipts, dates, corrections and archive
     page.getByRole("heading", { name: "Start with your first card." }),
   ).toBeVisible();
 });
+
+test("minimum and full-payment shortcuts produce clear receipts and a payment timeline", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/cards?demo=1");
+  await page
+    .getByRole("button", { name: "Add your first card", exact: true })
+    .click();
+  await page.getByLabel("Card nickname", { exact: true }).fill("Everyday");
+  await page.getByLabel("Bank / issuer").fill("Example Bank");
+  await page.getByLabel("Last four digits").fill("1234");
+  await page.getByLabel("Credit limit (INR)").fill("100000");
+  await page.getByRole("button", { name: "Save card", exact: true }).click();
+  await page
+    .getByRole("button", { name: "+ Record statement", exact: true })
+    .click();
+  await page.getByLabel("Statement date", { exact: true }).fill("2026-11-01");
+  await page.getByLabel("Actual payment due date").fill("2026-11-03");
+  await page.getByLabel("Total bill (INR)").fill("5000");
+  await page.getByLabel("Minimum due (INR)").fill("500");
+  await page
+    .getByRole("button", { name: "Save statement", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Overdue", exact: true }).click();
+  await expect(page.locator(".cards-wallet-item")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Record payment", exact: true })
+    .click();
+  await page.getByRole("button", { name: /Minimum remaining ₹500.00/ }).click();
+  await expect(page.getByLabel("Amount paid (INR)")).toHaveValue("500.00");
+  await page.getByRole("button", { name: "Save payment", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Payment recorded" }),
+  ).toContainText("₹4,500.00 still outstanding");
+  await page
+    .getByRole("button", { name: "Mark bill paid", exact: true })
+    .click();
+  await expect(page.getByLabel("Amount paid (INR)")).toHaveValue("4500.00");
+  await page
+    .getByRole("button", { name: "Confirm full payment", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Payment recorded" }),
+  ).toContainText("This bill is paid in full.");
+  await expect(page.locator(".cards-wallet-item")).toHaveCount(0);
+  await page.getByRole("button", { name: "Paid", exact: true }).click();
+  await expect(page.locator(".cards-wallet-item")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "View all history", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Payment log", exact: true }).click();
+  await expect(page.locator(".cards-payment-log>article")).toHaveCount(2);
+  const download = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Export payments", exact: true })
+    .click();
+  expect((await download).suggestedFilename()).toBe("card-payments.csv");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await page.screenshot({
+    path: "/tmp/cards-payment-log.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+});

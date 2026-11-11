@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  expectedCardStatement,
+  cardPaymentLog,
+  cardPaymentsCSV,
   parseCardMoney,
   cardSchedule,
   suggestedDue,
@@ -122,4 +125,29 @@ test("card amounts accept zero minimums and fees without floating-point rounding
   assert.equal(parseCardMoney("2500000.25"), 250000025);
   assert.throws(() => parseCardMoney("-1"));
   assert.throws(() => parseCardMoney("1.001"));
+});
+
+test("statement checks use the last expected date, including short months", () => {
+  assert.equal(
+    expectedCardStatement({ statementDay: 31 }, "2026-02-20"),
+    "2026-01-31",
+  );
+  assert.equal(
+    expectedCardStatement({ statementDay: 31 }, "2026-02-28"),
+    "2026-02-28",
+  );
+  assert.equal(
+    expectedCardStatement({ statementDay: 1 }, "2026-01-01"),
+    "2026-01-01",
+  );
+});
+test("payment log sorts actual receipt dates and exports safe notes", () => {
+  let doc = recordCardPayment(fixture(), bill, 10000, "2026-11-03", "=SUM(1)");
+  doc = recordCardPayment(doc, bill, 20000, "2026-11-02", "Other transfer");
+  assert.deepEqual(
+    cardPaymentLog(doc).map((p) => p.date),
+    ["2026-11-03", "2026-11-02"],
+  );
+  assert.ok(cardPaymentsCSV(doc).includes('"\'=SUM(1)"'));
+  assert.equal(cardPaymentLog(doc)[0].last4, "1234");
 });
