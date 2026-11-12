@@ -1,3 +1,4 @@
+import { organizerSchema, organizerSummary, emptyOrganizer } from "./organizer";
 import {
   cardsDocumentSchema,
   emptyCards,
@@ -26,6 +27,7 @@ export type AgendaItem = {
   currency?: string;
 };
 export type DashboardSummary = {
+  organizer: ReturnType<typeof organizerSummary>;
   agenda: AgendaItem[];
   cards: { count: number; balanceMinor: number };
   subscriptions: { count: number; collect: Record<string, number> };
@@ -46,6 +48,7 @@ export type DashboardSummary = {
   sources: Record<string, boolean>;
 };
 export type DashboardInput = {
+  organizer?: unknown;
   cards: unknown;
   plans: { id: string; document: unknown }[];
   learning: unknown;
@@ -159,7 +162,14 @@ export function dashboardSummary(input: DashboardInput): DashboardSummary {
       Math.floor(new Date(todayIST() + "T00:00:00Z").getTime() / 86400000),
   );
   const last = validDays.length ? Math.max(...validDays) : null;
+  const personal = organizerSchema.safeParse(
+    input.organizer ?? emptyOrganizer(),
+  );
+  if (!personal.success) sources.organizer = false;
   return {
+    organizer: organizerSummary(
+      personal.success ? personal.data : emptyOrganizer(),
+    ),
     agenda: agenda.sort(
       (a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title),
     ),

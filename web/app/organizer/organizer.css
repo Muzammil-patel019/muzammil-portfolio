@@ -1,0 +1,353 @@
+.organizer-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px;
+  background: var(--cc-soft);
+  border-radius: 14px;
+  margin: 26px 0;
+}
+.organizer-tabs button {
+  flex: 1;
+  min-width: 110px;
+  border: 0;
+  background: transparent;
+}
+.organizer-tabs button[aria-pressed="true"] {
+  background: var(--cc-surface);
+  box-shadow: 0 2px 6px #203d3710;
+}
+.organizer-app .organizer-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.organizer-toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin: 24px 0;
+}
+.organizer-toolbar .cards-search {
+  flex: 1;
+  min-width: 180px;
+}
+.organizer-app .organizer-check {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 12px;
+  min-height: 44px;
+  max-width: 100%;
+}
+.organizer-app .organizer-check input {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #759550;
+}
+.organizer-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.organizer-category {
+  margin: 20px 0;
+}
+.organizer-category > div,
+.organizer-budget > div:first-child {
+  display: flex;
+  gap: 15px;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.organizer-app progress {
+  width: 100%;
+  height: 8px;
+  display: block;
+  accent-color: #779a53;
+  margin: 12px 0;
+}
+.organizer-budget {
+  border-top: 1px solid var(--cc-line);
+  padding: 18px 0;
+}
+.organizer-budget small {
+  font-size: 11px;
+  color: var(--cc-muted);
+}
+.organizer-app [data-over="true"] {
+  color: #b85e42;
+}
+.organizer-record {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border-top: 1px solid var(--cc-line);
+  flex-wrap: wrap;
+}
+.organizer-record > div:first-child {
+  flex: 1;
+  min-width: 150px;
+}
+.organizer-record h3 {
+  margin: 0 0 4px;
+}
+.organizer-record p {
+  font-size: 11px;
+  margin: 0;
+  color: var(--cc-muted);
+}
+.organizer-record small {
+  font-size: 11px;
+  color: var(--cc-muted);
+  white-space: pre-wrap;
+}
+.organizer-record > strong {
+  font-size: 19px;
+  letter-spacing: -0.03em;
+}
+.organizer-record .cards-actions {
+  margin: 0;
+}
+.organizer-record button,
+.organizer-budget button {
+  font-size: 11px;
+  min-height: 36px;
+}
+.organizer-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+.organizer-card-grid > .cards-panel {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.organizer-form {
+  border-color: #9caf8b;
+}
+.organizer-app textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 8px;
+  background: var(--cc-surface);
+  color: var(--cc-text);
+  font:
+    14px/1.7 Arial,
+    sans-serif;
+  min-height: 110px;
+  resize: vertical;
+}
+.organizer-text-link {
+  text-decoration: underline !important;
+  text-underline-offset: 4px;
+  font-size: 12px;
+  color: var(--cc-text);
+}
+.organizer-details {
+  margin-top: 18px;
+  border-top: 1px solid var(--cc-line);
+  padding-top: 14px;
+}
+.organizer-details > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 34px;
+}
+.organizer-details p {
+  font-size: 12px;
+  margin: 10px 0;
+}
+.organizer-date-line {
+  padding: 10px 12px;
+  background: var(--cc-soft);
+  border-radius: 9px;
+  font-size: 12px;
+}
+.organizer-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.organizer-note-body {
+  margin: 20px 0;
+  max-height: 420px;
+  overflow: auto;
+}
+.organizer-status-select {
+  display: block;
+  margin: 20px 0 10px;
+}
+.organizer-goal-amount {
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.05em;
+  line-height: 1.3;
+  display: block;
+  margin: 18px 0 8px;
+}
+.organizer-goal > p {
+  font-size: 12px;
+}
+.organizer-ledger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid var(--cc-line);
+  padding: 14px 0;
+}
+.organizer-ledger-row small {
+  display: block;
+  font-size: 11px;
+  color: var(--cc-muted);
+  margin-top: 4px;
+}
+.organizer-ledger-row button {
+  font-size: 10px;
+  min-height: 34px;
+}
+.organizer-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.organizer-app .organizer-tags button {
+  min-height: 28px;
+  border-radius: 20px;
+  font-size: 10px;
+  padding: 3px 10px;
+  background: var(--cc-soft);
+}
+.organizer-card-grid article > small {
+  font-size: 10px;
+  color: var(--cc-muted);
+}
+.organizer-reminder {
+  display: flex;
+  align-items: start;
+  gap: 14px;
+  padding: 22px 0;
+  border-top: 1px solid var(--cc-line);
+  flex-wrap: wrap;
+}
+.organizer-reminder > div:first-of-type {
+  flex: 1;
+  min-width: 180px;
+}
+.organizer-reminder h3 {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+.organizer-reminder p {
+  font-size: 12px;
+  margin: 0 0 5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.organizer-reminder small {
+  font-size: 11px;
+  color: var(--cc-muted);
+}
+.organizer-reminder .cards-actions {
+  margin: 0;
+}
+.organizer-reminder button,
+.organizer-reminder .cards-button {
+  min-height: 36px;
+  font-size: 11px;
+  padding: 8px 11px;
+}
+.organizer-app .cards-footer {
+  display: block;
+}
+.organizer-app h2,
+.organizer-app h3 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .organizer-two-col {
+    grid-template-columns: 1fr;
+  }
+  .organizer-toolbar .cards-search {
+    min-width: 200px;
+  }
+}
+@media (max-width: 600px) {
+  .organizer-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .organizer-app .organizer-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .organizer-metrics > div:last-child {
+    grid-column: 1/-1;
+  }
+  .organizer-tabs button {
+    min-width: 90px;
+    font-size: 11px;
+    padding: 9px;
+  }
+  .organizer-toolbar {
+    align-items: stretch;
+  }
+  .organizer-toolbar .cards-search {
+    min-width: 100%;
+  }
+  .organizer-app input,
+  .organizer-app select,
+  .organizer-app textarea {
+    font-size: 16px;
+  }
+  .organizer-record {
+    gap: 12px;
+  }
+  .organizer-record .cards-actions {
+    width: 100%;
+  }
+  .organizer-reminder .cards-actions {
+    width: 100%;
+    margin-left: 42px;
+    flex-wrap: wrap;
+  }
+  .organizer-ledger-row {
+    align-items: start;
+    flex-wrap: wrap;
+  }
+  .organizer-details summary {
+    font-size: 12px;
+  }
+}
+
+.organizer-card-grid > article,
+.organizer-form {
+  animation: organizer-enter 0.22s ease-out;
+}
+@keyframes organizer-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.organizer-note-body .organizer-check {
+  white-space: normal;
+  margin: 8px 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .organizer-card-grid > article,
+  .organizer-form {
+    animation: none;
+  }
+}

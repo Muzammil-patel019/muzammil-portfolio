@@ -374,6 +374,7 @@ export function CardsManager() {
         </div>
       </header>
       <nav className="cards-private-nav" aria-label="Private tools">
+        <a href={demo ? "/organizer?demo=1" : "/organizer"}>Organizer</a>
         <a href={demo ? "/dashboard?demo=1" : "/dashboard"}>Dashboard</a>
         <a href="/subscriptions">Shared Plan</a>
         <a href="/cards" aria-current="page">

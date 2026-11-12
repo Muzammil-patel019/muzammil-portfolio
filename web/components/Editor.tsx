@@ -17,7 +17,9 @@ type Version = {
   updated_at: string;
 };
 export function Editor() {
-  const demo = useSearchParams().get("demo") === "1";
+  const params = useSearchParams(),
+    demo = params.get("demo") === "1",
+    requestedVersion = params.get("version");
   const db = useMemo(() => browserClient(), []);
   const [ready, setReady] = useState(false),
     [token, setToken] = useState("");
@@ -60,7 +62,9 @@ export function Editor() {
         if (!r.ok) throw Error(body.error);
         if (mounted) {
           setVersions(body);
-          const initial = initialVersion(body as Version[]);
+          const initial =
+            (body as Version[]).find((v) => v.id === requestedVersion) ||
+            initialVersion(body as Version[]);
           if (initial) {
             const parsed = resumeSchema.safeParse(initial.document);
             if (parsed.success) {
@@ -92,7 +96,7 @@ export function Editor() {
       mounted = false;
       listener.subscription.unsubscribe();
     };
-  }, [db, demo]);
+  }, [db, demo, requestedVersion]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => {

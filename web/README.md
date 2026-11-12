@@ -115,3 +115,17 @@ Only last-four identifiers, card labels, INR limits, annual fees, billing-day se
 Apply `supabase/renewals.sql` after the base schema. Renewal records use owner-only RLS and revision-checked writes. The dashboard aggregates sources in parallel and reports partial availability without returning card payment notes, learning drafts or sharing tokens. Card bills and member collections stay separate, including different subscription currencies. Renewal completion records a history entry and advances from the due date using a month-end anchor; manual next dates remain editable. Calendar files are snapshots with the chosen reminder offset, not automatic server notifications. No email or push delivery has been configured. Demo changes are memory-only.
 
 Design references reviewed: Homepage (https://github.com/gethomepage/homepage) for grouped overview widgets; Wallos (https://github.com/ellite/Wallos) for upcoming dates; Warracker (https://github.com/sassanix/warracker) for categorized expiry tracking. Implementation is original.
+
+### Private Organizer: all personal tools
+
+`/organizer` uses the same owner login and adds five tabs, also linked from `/dashboard`:
+
+- Expenses: manual INR spending, category/overall monthly budgets, category totals, searchable history and formula-safe CSV export. A zero budget is valid.
+- Applications: saved roles, stage history, interview times in IST, follow-ups, recruiter notes, archived records and a link to the exact private resume version used.
+- Savings goals: targets, deadlines and deposit/withdrawal histories. Corrections cannot leave a negative recorded balance. These are records, not bank transfers.
+- Reminder centre: card bills, plan renewals, expiry records, applications, goals and personal reminders, with snooze/dismiss/restore and .ics download. Dismissal never settles a bill. Calendar files are snapshots; import them into a calendar for device alerts.
+- Notes & bookmarks: plain text, safe web links, tags, search, pins and archive/restore. No public notes or sharing endpoint.
+
+Apply `supabase/organizer.sql` after the base schema. `personal_organizers` is protected by owner/admin RLS; writes check revisions to prevent overwriting newer changes from another device. `/api/dashboard` returns only organizer counts/totals, never application contacts or note bodies. A private JSON backup is available. `/organizer?demo=1` keeps its records only in memory across tabs; refresh clears them. Dates use IST and amounts use integer minor units.
+
+Email delivery is explicitly deferred by the owner. No email service, scheduled email, push service or automatic banking connection is enabled. In-app reminders and calendar downloads work without them.
