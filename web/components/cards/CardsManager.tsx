@@ -53,6 +53,7 @@ function dueText(bill: CardStatement) {
         : `Due in ${days} ${days === 1 ? "day" : "days"}`;
 }
 export function CardsManager() {
+  const initialCard = useSearchParams().get("cardId");
   const demo = useSearchParams().get("demo") === "1",
     db = useMemo(() => browserClient(), []);
   const [auth, setAuth] = useState<"checking" | "signedout" | "signedin">(
@@ -149,7 +150,10 @@ export function CardsManager() {
       setConflict(false);
       setForm(null);
       setSelected(
-        value.cards.find((c) => !c.archived)?.id || value.cards[0]?.id || "",
+        value.cards.find((c) => c.id === initialCard)?.id ||
+          value.cards.find((c) => !c.archived)?.id ||
+          value.cards[0]?.id ||
+          "",
       );
     } catch (e) {
       if (generation === authGeneration.current)
@@ -370,6 +374,7 @@ export function CardsManager() {
         </div>
       </header>
       <nav className="cards-private-nav" aria-label="Private tools">
+        <a href={demo ? "/dashboard?demo=1" : "/dashboard"}>Dashboard</a>
         <a href="/subscriptions">Shared Plan</a>
         <a href="/cards" aria-current="page">
           Cards

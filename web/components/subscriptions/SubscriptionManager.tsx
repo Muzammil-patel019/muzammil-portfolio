@@ -43,6 +43,7 @@ const defaults = (): Settings => ({
 });
 const clone = <T,>(value: T): T => structuredClone(value);
 export function SubscriptionManager() {
+  const initialPlan = useSearchParams().get("planId") || "";
   const demo = useSearchParams().get("demo") === "1";
   const db = useMemo(() => browserClient(), []);
   const [auth, setAuth] = useState<"checking" | "signedout" | "signedin">(
@@ -217,7 +218,7 @@ export function SubscriptionManager() {
     void db.auth.getSession().then(({ data }) => {
       if (!active) return;
       setAuth(data.session ? "signedin" : "signedout");
-      if (data.session) void load();
+      if (data.session) void load(initialPlan);
     });
     const { data } = db.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
@@ -410,6 +411,11 @@ export function SubscriptionManager() {
           )}
         </div>
       </header>
+      <nav className="plan-private-nav" aria-label="Private tools">
+        <a href={demo ? "/dashboard?demo=1" : "/dashboard"}>Dashboard ↗</a>
+        <a href={demo ? "/cards?demo=1" : "/cards"}>Cards</a>
+        <a href="/learning">Learning</a>
+      </nav>
       <nav className="plan-switcher" aria-label="Subscriptions">
         {plans.map((plan) => (
           <button

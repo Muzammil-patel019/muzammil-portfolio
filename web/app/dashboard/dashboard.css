@@ -1,0 +1,273 @@
+.hub-app .hub-amounts > span {
+  display: block;
+  font-size: 23px;
+  line-height: 1.5;
+}
+.hub-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.hub-agenda-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 0;
+  border-top: 1px solid var(--cc-line);
+}
+.hub-agenda-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.hub-app .hub-agenda-row h3 {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+.hub-app .hub-agenda-row p {
+  font-size: 11px;
+  margin: 0 0 4px;
+}
+.hub-agenda-row small {
+  font-size: 10px;
+  color: var(--cc-muted);
+}
+.hub-kind {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 38px;
+  flex-shrink: 0;
+  background: var(--cc-soft);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.hub-kind[data-kind="card"] {
+  border-left: 3px solid #8eac70;
+}
+.hub-kind[data-kind="subscription"] {
+  border-left: 3px solid #af9acb;
+}
+.hub-kind[data-kind="renewal"] {
+  border-left: 3px solid #c6ad72;
+}
+.hub-agenda-end {
+  text-align: right;
+}
+.hub-agenda-end strong {
+  display: block;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+}
+.hub-agenda-end small {
+  display: block;
+  margin-top: 5px;
+}
+.hub-app [data-overdue="true"] {
+  color: #b96546;
+}
+.hub-inbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--cc-line);
+  font-size: 12px;
+}
+.hub-inbox-row strong {
+  background: var(--cc-soft);
+  border-radius: 20px;
+  min-width: 28px;
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+}
+.hub-learning progress {
+  width: 100%;
+  accent-color: #7b9c57;
+  height: 8px;
+  margin: 12px 0 18px;
+}
+.hub-learning p,
+.hub-learning small {
+  font-size: 11px;
+  color: var(--cc-muted);
+}
+.hub-learning small {
+  display: block;
+  margin-top: 16px;
+}
+.hub-launch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.hub-launch-grid > a {
+  margin: 0;
+  padding: 22px;
+}
+.hub-launch-grid p {
+  font-size: 12px;
+  margin: 0;
+}
+.hub-form {
+  border-color: #a0b88a;
+}
+.hub-app textarea {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--cc-line);
+  border-radius: 9px;
+  background: var(--cc-surface);
+  color: var(--cc-text);
+  font:
+    14px/1.7 Arial,
+    sans-serif;
+  resize: vertical;
+  min-height: 90px;
+}
+.hub-renewal-filters {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  margin: 22px 0;
+  flex-wrap: wrap;
+}
+.hub-renewal-filters .cards-search {
+  flex: 1;
+  min-width: 190px;
+}
+.hub-renewal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.hub-renewal-grid > .cards-panel {
+  margin: 0;
+}
+.hub-due-badge {
+  font-size: 10px;
+  padding: 4px 9px;
+  border-radius: 20px;
+  background: var(--cc-soft);
+  color: var(--cc-muted);
+}
+.hub-renewal-item[data-selected="true"] {
+  border-color: #7b9c57;
+  box-shadow: 0 0 0 1px #7b9c57;
+}
+.hub-item-notes {
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hub-renewal-item .cards-secondary-link {
+  font-size: 12px;
+  margin: 15px 0;
+}
+.hub-renewal-history {
+  border-top: 1px solid var(--cc-line);
+  padding-top: 16px;
+  margin-top: 18px;
+}
+.hub-renewal-history summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 35px;
+}
+.hub-renewal-history > div {
+  border-top: 1px solid var(--cc-line);
+  padding: 12px 0;
+  font-size: 12px;
+}
+.hub-renewal-history p {
+  font-size: 11px;
+  margin: 5px 0 0;
+}
+.hub-app .cards-footer {
+  display: block;
+}
+.hub-app .cards-status {
+  color: #986338 !important;
+}
+.hub-agenda .cards-search {
+  min-width: 160px;
+}
+.hub-app .cards-section-head {
+  flex-wrap: wrap;
+}
+.hub-app .cards-title > div {
+  max-width: 720px;
+}
+@media (max-width: 850px) {
+  .hub-main-grid {
+    grid-template-columns: 1fr;
+  }
+  .hub-main-grid > aside {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .hub-launch-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .hub-main-grid > aside,
+  .hub-renewal-grid {
+    grid-template-columns: 1fr;
+  }
+  .hub-renewal-filters .cards-search {
+    min-width: 100%;
+  }
+  .hub-launch-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hub-launch-grid > a {
+    padding: 18px;
+  }
+  .hub-launch-grid h3 {
+    font-size: 15px;
+  }
+  .hub-agenda-row {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .hub-agenda-end {
+    margin-left: auto;
+  }
+  .hub-agenda-end strong {
+    font-size: 14px;
+  }
+  .hub-app .cards-title {
+    margin-top: 30px;
+  }
+  .hub-app .cards-header .cards-kicker {
+    font-size: 8px;
+  }
+  .hub-kind {
+    width: 28px;
+    height: 32px;
+  }
+  .hub-agenda .cards-search {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hub-agenda-row,
+  .hub-launch-grid > a {
+    transition:
+      background 0.16s,
+      border-color 0.16s;
+  }
+  .hub-agenda-row:hover {
+    background: var(--cc-soft);
+  }
+  .hub-launch-grid > a:hover {
+    border-color: #8da974;
+  }
+}

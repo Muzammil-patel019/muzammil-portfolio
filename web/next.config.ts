@@ -43,6 +43,14 @@ const config: NextConfig = {
         ],
       },
       {
+        source: "/dashboard/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
+      {
         source: "/cards/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store" },

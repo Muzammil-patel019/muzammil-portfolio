@@ -3,11 +3,13 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { browserClient } from "@/lib/supabase";
 export default function Login() {
+  const [dashboardLogin, setDashboardLogin] = useState(false);
   const [cardsLogin, setCardsLogin] = useState(false);
   const [learningLogin, setLearningLogin] = useState(false);
   const [subscriptionLogin, setSubscriptionLogin] = useState(false);
   useEffect(() => {
     const next = new URLSearchParams(window.location.search).get("next");
+    setDashboardLogin(next === "dashboard");
     setCardsLogin(next === "cards");
     setLearningLogin(next === "learning");
     setSubscriptionLogin(next === "subscriptions");
@@ -25,22 +27,26 @@ export default function Login() {
           ← Portfolio
         </Link>
         <h1 className="mt-6!">
-          {cardsLogin
-            ? "Your cards, privately"
-            : subscriptionLogin
-              ? "Your shared plan"
-              : learningLogin
-                ? "Your learning space"
-                : "Resume studio"}
+          {dashboardLogin
+            ? "Your personal hub"
+            : cardsLogin
+              ? "Your cards, privately"
+              : subscriptionLogin
+                ? "Your shared plan"
+                : learningLogin
+                  ? "Your learning space"
+                  : "Resume studio"}
         </h1>
         <p className="mt-3 text-stone-600">
-          {cardsLogin
-            ? "Sign in to track card limits, statements and payments."
-            : subscriptionLogin
-              ? "Sign in to manage your subscription, members, and payments."
-              : learningLogin
-                ? "Sign in to learn, play, and keep your progress."
-                : "Your experience. Your versions. Your next opportunity."}
+          {dashboardLogin
+            ? "Sign in for your cards, shared plans, renewals and learning overview."
+            : cardsLogin
+              ? "Sign in to track card limits, statements and payments."
+              : subscriptionLogin
+                ? "Sign in to manage your subscription, members, and payments."
+                : learningLogin
+                  ? "Sign in to learn, play, and keep your progress."
+                  : "Your experience. Your versions. Your next opportunity."}
         </p>
         {!db ? (
           <>
@@ -51,11 +57,13 @@ export default function Login() {
             <Link
               className="mt-6 inline-block text-violet-700 underline"
               href={
-                cardsLogin
-                  ? "/cards?demo=1"
-                  : subscriptionLogin
-                    ? "/subscriptions?demo=1"
-                    : "/admin?demo=1"
+                dashboardLogin
+                  ? "/dashboard?demo=1"
+                  : cardsLogin
+                    ? "/cards?demo=1"
+                    : subscriptionLogin
+                      ? "/subscriptions?demo=1"
+                      : "/admin?demo=1"
               }
             >
               Explore the local demo →
@@ -79,17 +87,21 @@ export default function Login() {
                 else
                   window.location.assign(
                     new URLSearchParams(window.location.search).get("next") ===
-                      "cards"
-                      ? "/cards"
+                      "dashboard"
+                      ? "/dashboard"
                       : new URLSearchParams(window.location.search).get(
                             "next",
-                          ) === "subscriptions"
-                        ? "/subscriptions"
+                          ) === "cards"
+                        ? "/cards"
                         : new URLSearchParams(window.location.search).get(
                               "next",
-                            ) === "learning"
-                          ? "/learning"
-                          : "/admin",
+                            ) === "subscriptions"
+                          ? "/subscriptions"
+                          : new URLSearchParams(window.location.search).get(
+                                "next",
+                              ) === "learning"
+                            ? "/learning"
+                            : "/admin",
                   );
               } catch {
                 setMessage(
