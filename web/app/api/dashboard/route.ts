@@ -50,6 +50,11 @@ export async function GET(request: NextRequest) {
         .eq("owner_id", user.id)
         .eq("status", "pending")
         .limit(1),
+      db
+        .from("personal_organizers")
+        .select("document")
+        .eq("owner_id", user.id)
+        .maybeSingle(),
     ]);
     const names = [
       "cards",
@@ -59,6 +64,7 @@ export async function GET(request: NextRequest) {
       "payments",
       "preferences",
       "joins",
+      "organizer",
     ];
     const sources: Record<string, boolean> = {};
     const values = results.map((r, i) => {
@@ -97,6 +103,7 @@ export async function GET(request: NextRequest) {
         preferencePlanId: pendingPlan(5),
         joinPlanId: pendingPlan(6),
       },
+      organizer: objectDocument(7),
       sources,
     });
     return NextResponse.json(summary, { headers });

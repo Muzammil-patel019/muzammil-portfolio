@@ -377,6 +377,7 @@ export function PersonalHub() {
         <a href={link("/dashboard")} aria-current="page">
           Dashboard
         </a>
+        <a href={link("/organizer")}>Organizer</a>
         <a href={link("/cards")}>Cards</a>
         <a href={link("/subscriptions")}>Shared Plan</a>
         <a href="/learning">Learning</a>
@@ -503,6 +504,44 @@ export function PersonalHub() {
                     recorded milestones
                   </small>
                 </div>
+              </section>
+              <section
+                className="cards-metrics"
+                aria-label="Organizer overview"
+              >
+                <a href={link("/organizer?tab=expenses")}>
+                  <span>Spending this month</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : cardMoney(summary.organizer.spendingMinor)}
+                  </strong>
+                </a>
+                <a href={link("/organizer?tab=jobs")}>
+                  <span>Active applications</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : summary.organizer.activeApplications}
+                  </strong>
+                </a>
+                <a href={link("/organizer?tab=goals")}>
+                  <span>Recorded savings</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : cardMoney(summary.organizer.savedMinor)}
+                  </strong>
+                  <small>Across {summary.organizer.goals} active goals</small>
+                </a>
+                <a href={link("/organizer?tab=notes")}>
+                  <span>Notes & bookmarks</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : summary.organizer.notes}
+                  </strong>
+                </a>
               </section>
               <div className="hub-main-grid">
                 <section className="cards-panel hub-agenda">
@@ -661,6 +700,33 @@ export function PersonalHub() {
               </div>
               <section className="hub-launch-grid" aria-label="Your workspaces">
                 {[
+                  {
+                    name: "Expenses",
+                    href: "/organizer?tab=expenses",
+                    description: "Spending, category budgets and CSV exports.",
+                  },
+                  {
+                    name: "Applications",
+                    href: "/organizer?tab=jobs",
+                    description:
+                      "Interviews, follow-ups and the resume version you sent.",
+                  },
+                  {
+                    name: "Savings goals",
+                    href: "/organizer?tab=goals",
+                    description: "Targets and your deposit/withdrawal ledger.",
+                  },
+                  {
+                    name: "Reminder centre",
+                    href: "/organizer?tab=reminders",
+                    description:
+                      "Upcoming dates, snooze and calendar downloads.",
+                  },
+                  {
+                    name: "Notes & bookmarks",
+                    href: "/organizer?tab=notes",
+                    description: "Searchable private links, notes and tags.",
+                  },
                   {
                     name: "Cards",
                     href: "/cards",

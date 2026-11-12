@@ -412,6 +412,7 @@ export function SubscriptionManager() {
         </div>
       </header>
       <nav className="plan-private-nav" aria-label="Private tools">
+        <a href={demo ? "/organizer?demo=1" : "/organizer"}>Organizer</a>
         <a href={demo ? "/dashboard?demo=1" : "/dashboard"}>Dashboard ↗</a>
         <a href={demo ? "/cards?demo=1" : "/cards"}>Cards</a>
         <a href="/learning">Learning</a>
