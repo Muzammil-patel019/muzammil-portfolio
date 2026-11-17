@@ -6,3 +6,8 @@ web/.env*
 web/*.tsbuildinfo
 web/test-results/
 web/playwright-report/
+
+# Automation Lab learner environment
+**/__pycache__/
+**/.pytest_cache/
+automation-lab-starter/.venv/

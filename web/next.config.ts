@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
+  async rewrites() {
+    const host = [{ type: "host" as const, value: "lab.muzammilpatel.com" }];
+    return {
+      beforeFiles: [
+        { source: "/", has: host, destination: "/lab" },
+        { source: "/api/health", has: host, destination: "/api/lab/health" },
+        {
+          source: "/api/products/:path*",
+          has: host,
+          destination: "/api/lab/products/:path*",
+        },
+      ],
+    };
+  },
   async headers() {
     return [
       {
