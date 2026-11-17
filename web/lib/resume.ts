@@ -1,5 +1,33 @@
 import { z } from "zod";
+export const resumeSections = [
+  "summary",
+  "skills",
+  "projects",
+  "education",
+  "certifications",
+  "achievements",
+] as const;
+const profileURL = z.union([
+  z.literal(""),
+  z
+    .url()
+    .max(2048)
+    .refine((v) => /^https?:\/\//i.test(v), "Use a full https or http link."),
+]);
 export const resumeSchema = z.object({
+  template: z.enum(["professional", "classic", "modern"]).optional(),
+  sectionOrder: z
+    .array(z.enum(resumeSections))
+    .length(resumeSections.length)
+    .refine(
+      (v) => new Set(v).size === resumeSections.length,
+      "Include each resume section once.",
+    )
+    .optional(),
+  linkedin: profileURL.optional(),
+  website: profileURL.optional(),
+  certifications: z.string().max(3000).optional(),
+  achievements: z.string().max(3000).optional(),
   layout: z.enum(["comfortable", "compact"]).default("comfortable"),
   name: z.string().trim().min(1).max(100),
   title: z.string().trim().min(1).max(120),

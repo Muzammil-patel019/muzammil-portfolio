@@ -7,6 +7,8 @@ import { resumeSchema, analyzeJD, type Resume } from "@/lib/resume";
 import { resumeFilename } from "@/lib/resume-filename";
 import { initialVersion } from "@/lib/versions";
 import seed from "@/lib/seed.json";
+import { ResumeControls } from "./ResumeControls";
+import { normalizeResume } from "@/lib/resume-builder";
 import { ResumePreview } from "./ResumePreview";
 import "./Editor.css";
 type Version = {
@@ -146,10 +148,10 @@ export function Editor() {
     return r;
   }
   async function save(copy = false) {
-    const parsed = resumeSchema.safeParse(resume);
+    const parsed = resumeSchema.safeParse(normalizeResume(resume));
     if (!parsed.success) {
       setMessage(
-        "Please fill in every required field. Use one bullet per line and comma-separated skills.",
+        `Check ${parsed.error.issues[0]?.path.join(" → ") || "your resume"}: ${parsed.error.issues[0]?.message || "Complete the required fields."}`,
       );
       return;
     }
@@ -207,9 +209,11 @@ export function Editor() {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   async function pdf() {
-    const parsed = resumeSchema.safeParse(resume);
+    const parsed = resumeSchema.safeParse(normalizeResume(resume));
     if (!parsed.success) {
-      setMessage("Complete the required fields before exporting.");
+      setMessage(
+        `Check ${parsed.error.issues[0]?.path.join(" → ") || "your resume"}: ${parsed.error.issues[0]?.message}`,
+      );
       return;
     }
     setBusy(true);
@@ -239,7 +243,7 @@ export function Editor() {
     }
   }
   async function publish() {
-    const parsed = resumeSchema.safeParse(resume);
+    const parsed = resumeSchema.safeParse(normalizeResume(resume));
     if (!parsed.success) {
       setMessage("Complete the required fields before publishing.");
       return;
@@ -261,6 +265,45 @@ export function Editor() {
     } finally {
       setBusy(false);
     }
+  }
+  function moveProject(index: number, offset: -1 | 1) {
+    const projects = [...resume.projects],
+      to = index + offset;
+    if (to < 0 || to >= projects.length) return;
+    [projects[index], projects[to]] = [projects[to], projects[index]];
+    change({ ...resume, projects });
+  }
+  function jumpToSection(key: string) {
+    setStudioView("edit");
+    requestAnimationFrame(() => {
+      const ids: Record<string, string> = {
+        summary: "summary",
+        skills: "skills",
+        projects: "studio-projects",
+        education: "education",
+        certifications: "certifications",
+        achievements: "achievements",
+        contact: "name",
+      };
+      const target = document.getElementById(ids[key] || key);
+      target?.scrollIntoView({
+        block: "center",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+      target?.focus({ preventScroll: true });
+    });
+  }
+  function printCurrent() {
+    const parsed = resumeSchema.safeParse(normalizeResume(resume));
+    if (!parsed.success) {
+      setMessage(
+        "Complete required fields and correct invalid links before printing.",
+      );
+      return;
+    }
+    window.print();
   }
   const field = (
     key: "name" | "title" | "email" | "phone" | "location",
@@ -435,6 +478,12 @@ export function Editor() {
               ))}
             </div>
             <hr className="my-5 border-stone-200" />
+            <ResumeControls
+              resume={resume}
+              onChange={change}
+              onJump={jumpToSection}
+            />
+            <hr className="my-5 border-stone-200" />
             <button
               onClick={() =>
                 download(
@@ -481,7 +530,32 @@ export function Editor() {
             />
           </aside>
           <section className="panel min-w-0 studio-fields">
-            <h2>Edit your experience</h2>
+            <div className="studio-fields-intro">
+              <p className="studio-eyebrow">YOUR STORY, CLEARLY TOLD</p>
+              <h2>Edit your experience</h2>
+              <p>
+                Work through your details, then review the document alongside.
+              </p>
+            </div>
+            <nav className="studio-field-nav" aria-label="Resume fields">
+              {[
+                { id: "contact", label: "Contact" },
+                { id: "summary", label: "Summary" },
+                { id: "skills", label: "Skills" },
+                { id: "projects", label: "Experience" },
+                { id: "education", label: "Education" },
+                { id: "certifications", label: "Extras" },
+                { id: "jd", label: "Job match" },
+              ].map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => jumpToSection(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
             <label htmlFor="resume-layout">Resume layout</label>
             <select
               id="resume-layout"
@@ -510,6 +584,24 @@ export function Editor() {
               {field("email", "Email")}
               {field("phone", "Phone")}
               {field("location", "Location")}
+              {(["linkedin", "website"] as const).map((key) => (
+                <div key={key}>
+                  <label htmlFor={key}>
+                    {key === "linkedin"
+                      ? "LinkedIn URL (optional)"
+                      : "Portfolio / GitHub URL (optional)"}
+                  </label>
+                  <input
+                    id={key}
+                    type="url"
+                    placeholder="https://…"
+                    value={resume[key] || ""}
+                    onChange={(e) =>
+                      change({ ...resume, [key]: e.target.value })
+                    }
+                  />
+                </div>
+              ))}
             </div>
             <label htmlFor="summary">Profile summary</label>
             <textarea
@@ -528,6 +620,17 @@ export function Editor() {
                 })
               }
             />
+            <h3
+              id="studio-projects"
+              tabIndex={-1}
+              className="studio-field-heading"
+            >
+              Projects & experience
+            </h3>
+            <p className="studio-control-note">
+              Keep the most relevant work first. Describe what you did and the
+              result.
+            </p>
             {resume.projects.map((p, index) => (
               <fieldset
                 key={p.id}
@@ -536,6 +639,27 @@ export function Editor() {
                 <legend className="px-2 font-bold">
                   {p.name || "New project"}
                 </legend>
+                <div className="studio-project-order">
+                  <span>Experience {index + 1}</span>
+                  <div>
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      aria-label={`Move project ${index + 1} up`}
+                      onClick={() => moveProject(index, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      disabled={index === resume.projects.length - 1}
+                      aria-label={`Move project ${index + 1} down`}
+                      onClick={() => moveProject(index, 1)}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
                 {(["name", "client", "dates"] as const).map((key) => (
                   <div key={key}>
                     <label htmlFor={`${p.id}-${key}`}>
@@ -668,6 +792,30 @@ export function Editor() {
               value={resume.education}
               onChange={(e) => change({ ...resume, education: e.target.value })}
             />
+            <label htmlFor="certifications">
+              Certifications — one per line (optional)
+            </label>
+            <textarea
+              id="certifications"
+              maxLength={3000}
+              value={resume.certifications || ""}
+              onChange={(e) =>
+                change({ ...resume, certifications: e.target.value })
+              }
+              placeholder="Certificate name · Issuer · Year"
+            />
+            <label htmlFor="achievements">
+              Achievements — one per line (optional)
+            </label>
+            <textarea
+              id="achievements"
+              maxLength={3000}
+              value={resume.achievements || ""}
+              onChange={(e) =>
+                change({ ...resume, achievements: e.target.value })
+              }
+              placeholder="An award, contribution or milestone you can explain."
+            />
             <div className="panel">
               <h2>Job description match</h2>
               <label htmlFor="jd">Paste a job description</label>
@@ -734,6 +882,9 @@ export function Editor() {
             <div className="flex flex-wrap gap-2">
               <button className="primary" disabled={busy} onClick={pdf}>
                 {busy ? "Working…" : "Download PDF"}
+              </button>
+              <button disabled={busy} onClick={printCurrent}>
+                Print current resume
               </button>
               <button disabled={busy || demo} onClick={publish}>
                 Publish to portfolio
