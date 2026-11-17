@@ -129,3 +129,11 @@ Design references reviewed: Homepage (https://github.com/gethomepage/homepage) f
 Apply `supabase/organizer.sql` after the base schema. `personal_organizers` is protected by owner/admin RLS; writes check revisions to prevent overwriting newer changes from another device. `/api/dashboard` returns only organizer counts/totals, never application contacts or note bodies. A private JSON backup is available. `/organizer?demo=1` keeps its records only in memory across tabs; refresh clears them. Dates use IST and amounts use integer minor units.
 
 Email delivery is explicitly deferred by the owner. No email service, scheduled email, push service or automatic banking connection is enabled. In-app reminders and calendar downloads work without them.
+
+### Resume studio: document controls and review
+
+The private `/admin` studio includes Professional, Classic and Modern document styles, an independent readable/compact density setting, section and project reordering, safe LinkedIn/website links, optional certifications/achievements, and a live writing checklist. Choices persist per version and are shared by the preview and PDF renderer. Older documents keep their original appearance and order; empty optional sections are omitted. Print current resume prints the edited document without studio controls. The desktop preview remains sticky while fields scroll, with separate edit/preview views on phones.
+
+Checklist items are transparent writing heuristics, not an ATS score, one-page guarantee or hiring prediction. PDF pagination can differ from the browser preview. Empty comma/bullet separators are removed at save/export without inventing content. No saved resume is rewritten or publicly published by deploying this update.
+
+Reference: [CampusToDrive resume builder](https://campustodrive.com/resume-builder-for-freshers/) (indexed builder content reviewed for style selection, section order and checklist ideas; the live page was inaccessible from the execution environment). Implementation is original and retains owner authentication and private version storage.

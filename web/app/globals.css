@@ -319,3 +319,11 @@
 }
 
 /* A real-work showcase replaces the inspection game in the introduction. */
+
+/* Resume styles share the same plain-text, single-column structure. */
+.resume-preview.resume-template-classic {font-family:Georgia,"Times New Roman",serif;}
+.resume-preview.resume-template-classic .resume-heading h2,
+.resume-preview.resume-template-classic .resume-project-heading h4 {font-family:inherit;}
+.resume-preview.resume-template-modern .resume-heading {text-align:left;}
+.resume-preview.resume-template-modern .resume-contact {justify-content:flex-start;}
+.resume-preview .resume-links a {color:inherit;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere;}

@@ -1,19 +1,33 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  Link,
+} from "@react-pdf/renderer";
 import type { Resume } from "@/lib/resume";
+import { Fragment } from "react";
+import {
+  orderedSections,
+  sectionLabels,
+  textLines,
+  profileLinks,
+} from "@/lib/resume-builder";
 import { groupSkills } from "@/lib/resume-layout";
-function makeStyles(compact: boolean) {
+function makeStyles(compact: boolean, template = "professional") {
   return StyleSheet.create({
     page: {
       paddingTop: compact ? 36 : 42,
       paddingHorizontal: 42,
       paddingBottom: 42,
-      fontFamily: "Helvetica",
+      fontFamily: template === "classic" ? "Times-Roman" : "Helvetica",
       fontSize: compact ? 9 : 10.2,
       lineHeight: compact ? 1.3 : 1.48,
       color: "#222b38",
     },
     heading: {
-      textAlign: "center",
+      textAlign: template === "modern" ? "left" : "center",
       paddingBottom: compact ? 12 : 17,
       borderBottomWidth: 1.2,
       borderBottomColor: "#27364b",
@@ -21,7 +35,7 @@ function makeStyles(compact: boolean) {
     },
     name: {
       fontSize: compact ? 22 : 25,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: template === "classic" ? "Times-Bold" : "Helvetica-Bold",
       letterSpacing: 0.3,
       lineHeight: 1.2,
     },
@@ -34,8 +48,8 @@ function makeStyles(compact: boolean) {
     },
     section: {
       fontSize: compact ? 9.2 : 10.3,
-      fontFamily: "Helvetica-Bold",
-      letterSpacing: 1.1,
+      fontFamily: template === "classic" ? "Times-Bold" : "Helvetica-Bold",
+      letterSpacing: 0,
       marginTop: compact ? 12 : 18,
       marginBottom: compact ? 6 : 9,
       paddingBottom: 3,
@@ -47,7 +61,7 @@ function makeStyles(compact: boolean) {
     skillLabel: {
       width: compact ? 112 : 135,
       fontSize: compact ? 8.6 : 9.4,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: template === "classic" ? "Times-Bold" : "Helvetica-Bold",
       paddingRight: 10,
     },
     skillValues: { flex: 1, fontSize: compact ? 9 : 10 },
@@ -58,7 +72,10 @@ function makeStyles(compact: boolean) {
       gap: 12,
     },
     projectTitleBlock: { flex: 1 },
-    title: { fontFamily: "Helvetica-Bold", fontSize: compact ? 10.2 : 12 },
+    title: {
+      fontFamily: template === "classic" ? "Times-Bold" : "Helvetica-Bold",
+      fontSize: compact ? 10.2 : 12,
+    },
     client: { fontSize: compact ? 8.8 : 10, color: "#526071", marginTop: 2 },
     dates: {
       width: 137,
@@ -88,7 +105,7 @@ function makeStyles(compact: boolean) {
   });
 }
 export function ResumePDF({ resume: r }: { resume: Resume }) {
-  const s = makeStyles(r.layout === "compact");
+  const s = makeStyles(r.layout === "compact", r.template);
   const bullet = (text: string, key: number) => (
     <View key={key} style={s.bullet} wrap={false}>
       <Text style={s.bulletMark}>•</Text>
@@ -104,55 +121,83 @@ export function ResumePDF({ resume: r }: { resume: Resume }) {
           <Text style={s.contact}>
             {[r.location, r.email, r.phone].filter(Boolean).join("   |   ")}
           </Text>
+          {profileLinks(r).map((link) => (
+            <Link key={link.label} src={link.url} style={s.contact}>
+              {link.url.replace(/^https?:\/\//, "")}
+            </Link>
+          ))}
         </View>
-        <Text style={s.section} minPresenceAhead={35}>
-          PROFESSIONAL SUMMARY
-        </Text>
-        <Text orphans={3} widows={3}>
-          {r.summary}
-        </Text>
-        {r.skills.length > 0 && (
-          <>
-            <Text style={s.section} minPresenceAhead={35}>
-              TECHNICAL SKILLS
-            </Text>
-            {groupSkills(r.skills).map((g) => (
-              <View style={s.skillRow} key={g.label} wrap={false}>
-                <Text style={s.skillLabel}>{g.label}</Text>
-                <Text style={s.skillValues}>{g.skills.join(" · ")}</Text>
-              </View>
-            ))}
-          </>
-        )}
-        <Text style={s.section} minPresenceAhead={85}>
-          PROFESSIONAL EXPERIENCE
-        </Text>
-        {r.projects.map((p) => (
-          <View key={p.id} style={s.project} wrap>
-            <View wrap={false}>
-              <View style={s.projectHead}>
-                <View style={s.projectTitleBlock}>
-                  <Text style={s.title}>{p.name}</Text>
-                  <Text style={s.client}>Client: {p.client}</Text>
-                </View>
-                <Text style={s.dates}>{p.dates}</Text>
-              </View>
-              {p.tools.length > 0 && (
-                <Text style={s.tools}>Environment: {p.tools.join(" · ")}</Text>
+        {orderedSections(r).map((key) => (
+          <Fragment key={key}>
+            {key === "summary" && (
+              <>
+                <Text style={s.section} minPresenceAhead={35}>
+                  {sectionLabels.summary.toUpperCase()}
+                </Text>
+                <Text orphans={3} widows={3}>
+                  {r.summary}
+                </Text>
+              </>
+            )}
+            {key === "skills" && r.skills.length > 0 && (
+              <>
+                <Text style={s.section} minPresenceAhead={35}>
+                  TECHNICAL SKILLS
+                </Text>
+                {groupSkills(r.skills).map((g) => (
+                  <View style={s.skillRow} key={g.label} wrap={false}>
+                    <Text style={s.skillLabel}>{g.label}</Text>
+                    <Text style={s.skillValues}>{g.skills.join(" · ")}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+            {key === "projects" && (
+              <>
+                <Text style={s.section} minPresenceAhead={85}>
+                  PROFESSIONAL EXPERIENCE
+                </Text>
+                {r.projects.map((p) => (
+                  <View key={p.id} style={s.project} wrap>
+                    <View wrap={false}>
+                      <View style={s.projectHead}>
+                        <View style={s.projectTitleBlock}>
+                          <Text style={s.title}>{p.name}</Text>
+                          <Text style={s.client}>Client: {p.client}</Text>
+                        </View>
+                        <Text style={s.dates}>{p.dates}</Text>
+                      </View>
+                      {p.tools.length > 0 && (
+                        <Text style={s.tools}>
+                          Environment: {p.tools.join(" · ")}
+                        </Text>
+                      )}
+                      {p.bullets[0] && bullet(p.bullets[0], 0)}
+                    </View>
+                    {p.bullets.slice(1).map((b, i) => bullet(b, i + 1))}
+                  </View>
+                ))}
+              </>
+            )}
+            {key === "education" && r.education && (
+              <>
+                <Text style={s.section} minPresenceAhead={45}>
+                  EDUCATION
+                </Text>
+                <Text>{r.education}</Text>
+              </>
+            )}
+            {(key === "certifications" || key === "achievements") &&
+              textLines(r[key]).length > 0 && (
+                <>
+                  <Text style={s.section} minPresenceAhead={35}>
+                    {sectionLabels[key].toUpperCase()}
+                  </Text>
+                  {textLines(r[key]).map((line, i) => bullet(line, i))}
+                </>
               )}
-              {p.bullets[0] && bullet(p.bullets[0], 0)}
-            </View>
-            {p.bullets.slice(1).map((b, i) => bullet(b, i + 1))}
-          </View>
+          </Fragment>
         ))}
-        {r.education && (
-          <>
-            <Text style={s.section} minPresenceAhead={45}>
-              EDUCATION
-            </Text>
-            <Text>{r.education}</Text>
-          </>
-        )}
         <View fixed style={s.footer}>
           <Text
             render={({ pageNumber, totalPages }) =>
