@@ -137,3 +137,13 @@ The private `/admin` studio includes Professional, Classic and Modern document s
 Checklist items are transparent writing heuristics, not an ATS score, one-page guarantee or hiring prediction. PDF pagination can differ from the browser preview. Empty comma/bullet separators are removed at save/export without inventing content. No saved resume is rewritten or publicly published by deploying this update.
 
 Reference: [CampusToDrive resume builder](https://campustodrive.com/resume-builder-for-freshers/) (indexed builder content reviewed for style selection, section order and checklist ideas; the live page was inaccessible from the execution environment). Implementation is original and retains owner authentication and private version storage.
+
+### Automation Lab — Stage 1
+
+`/lab` is a separate public practice workspace with fictional products, an API Explorer, ten exploration exercises and the ten-stage learning roadmap. It does not use Supabase, owner sessions or personal records. Its catalogue has twelve immutable products; workspace reset clears only browser filters and the dedicated `mp-automation-lab-progress-v1` checklist key. Later auth, cart, admin, database reset and failure-injection stages are explicitly planned.
+
+Real GET endpoints: `/api/lab/health`, `/api/lab/products`, `/api/lab/products/{id}` and `/api/lab/openapi` (OpenAPI 3.0.3). Product list filters support q, category, stock, sort, page and pageSize. Unknown/repeated/invalid parameters return 400; missing IDs return 404; no-match lists return 200. Prices are integer INR paise. No write or payment endpoint exists in Stage 1.
+
+Download the Python starter from `/lab/starter.zip`; source is under `automation-lab-starter/`. It includes setup instructions, pinned dependencies, two pytest/HTTPX API tests and one Playwright browser test. Regenerate its deterministic embedded archive after changing source with `python3 scripts/package-lab-starter.py`. Run the app locally using `npm --prefix web ci` and `npm --prefix web run dev`. The starter README explains running against local or deployed origins.
+
+The `lab.muzammilpatel.com` project domain is assigned in Vercel, with host-specific rewrites for `/`, `/api/health` and `/api/products/*`. Authoritative DNS remains at Porkbun: add CNAME host `lab` targeting the value recommended by Vercel (`eb81b076196680dc.vercel-dns-017.com` at setup time), then verify DNS/HTTPS. `/lab` on the existing domain works independently of that DNS change.

@@ -746,6 +746,12 @@ export function PersonalHub() {
                       "Insurance, warranties and the dates that matter.",
                   },
                   {
+                    name: "Automation Lab",
+                    href: "/lab",
+                    description:
+                      "A sample store, real APIs and guided automation exercises.",
+                  },
+                  {
                     name: "Resume studio",
                     href: "/admin",
                     description:
