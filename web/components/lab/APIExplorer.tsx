@@ -1,17 +1,51 @@
 "use client";
 import { useEffect, useState } from "react";
-const requests = [
+const requests: {
+  label: string;
+  path: string;
+  method?: string;
+  sample?: string;
+}[] = [
   { label: "Service health", path: "/health" },
   { label: "All products", path: "/products" },
   { label: "One product", path: "/products/p-001" },
   { label: "Missing product · 404", path: "/products/not-a-product" },
   { label: "Invalid page · 400", path: "/products?page=0" },
+  { label: "Practice state", path: "/workspace/state" },
+  {
+    label: "Demo login",
+    path: "/workspace/session",
+    method: "POST",
+    sample: JSON.stringify(
+      { email: "customer@lab.test", password: "Practice123!" },
+      null,
+      2,
+    ),
+  },
+  {
+    label: "Practice cart",
+    path: "/workspace/cart",
+    method: "POST",
+    sample: JSON.stringify({ productId: "p-001", quantity: 1 }, null, 2),
+  },
+  { label: "Practice orders", path: "/workspace/orders" },
+  {
+    label: "Edit run inventory · admin",
+    path: "/workspace/products/p-001",
+    method: "PATCH",
+    sample: JSON.stringify({ stock: 5 }, null, 2),
+  },
 ];
 export function APIExplorer({
   selectedPath = "/products",
 }: {
   selectedPath?: string;
 }) {
+  const [method, setMethod] = useState("GET"),
+    [payload, setPayload] = useState(""),
+    [workspace, setWorkspace] = useState(""),
+    [session, setSession] = useState(""),
+    [mode, setMode] = useState("normal");
   const [path, setPath] = useState(selectedPath),
     [query, setQuery] = useState(""),
     [result, setResult] = useState<{
@@ -26,6 +60,11 @@ export function APIExplorer({
     [origin, setOrigin] = useState("https://www.muzammilpatel.com");
   useEffect(() => {
     setOrigin(location.origin);
+    try {
+      const run = JSON.parse(localStorage.getItem("mp-lab-run-v1") || "{}");
+      setWorkspace(run.workspaceToken || "");
+      setSession(run.sessionToken || "");
+    } catch {}
   }, []);
   const url =
     "/api/lab" +
@@ -38,7 +77,25 @@ export function APIExplorer({
     setError("");
     const start = performance.now();
     try {
-      const r = await fetch(url, { cache: "no-store", credentials: "omit" }),
+      const parsed =
+        method === "GET" || method === "DELETE"
+          ? undefined
+          : JSON.parse(payload || "{}");
+      const r = await fetch(url, {
+          method,
+          cache: "no-store",
+          credentials: "omit",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Lab-Workspace": workspace,
+            Authorization: session ? "Bearer " + session : "",
+            "X-Lab-Scenario": mode,
+            ...(method === "POST" && path === "/workspace/orders"
+              ? { "Idempotency-Key": crypto.randomUUID() }
+              : {}),
+          },
+          body: parsed === undefined ? undefined : JSON.stringify(parsed),
+        }),
         body = await r.json();
       setResult({
         status: r.status,
@@ -46,15 +103,18 @@ export function APIExplorer({
         body,
         url,
       });
-    } catch {
+    } catch (error) {
       setError(
-        "The request could not reach the lab. Check your connection and try again.",
+        error instanceof SyntaxError
+          ? "The request body must be valid JSON. No request was sent."
+          : "The request could not reach the lab. Check your connection and try again.",
       );
     } finally {
       setBusy(false);
     }
   }
-  const curl = `curl -i '${origin}${url}'`;
+  const shellQuote = (v: string) => "'" + v.replaceAll("'", "'\\''") + "'";
+  const curl = `curl -i -X ${method} ${shellQuote(origin + url)}${method !== "GET" && method !== "DELETE" ? " -H 'Content-Type: application/json' --data " + shellQuote(payload || "{}") : ""}`;
   return (
     <div className="lab-api-layout">
       <section className="lab-panel">
@@ -95,8 +155,71 @@ export function APIExplorer({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="category=desk&sort=price-asc"
           />
+          <div className="lab-role-form">
+            <label>
+              HTTP method
+              <select
+                aria-label="HTTP method"
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+              >
+                {["GET", "POST", "PATCH", "DELETE"].map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Failure scenario
+              <select
+                aria-label="API failure scenario"
+                value={mode}
+                onChange={(e) => setMode(e.target.value)}
+              >
+                {["normal", "slow", "unavailable", "expired", "declined"].map(
+                  (m) => (
+                    <option key={m}>{m}</option>
+                  ),
+                )}
+              </select>
+            </label>
+          </div>
+          {method !== "GET" && method !== "DELETE" && (
+            <label>
+              JSON request body
+              <textarea
+                aria-label="JSON request body"
+                value={payload}
+                onChange={(e) => setPayload(e.target.value)}
+                className="lab-console-body"
+              />
+            </label>
+          )}
+          <details className="lab-run-tokens">
+            <summary>Practice workspace headers</summary>
+            <p>
+              Imported from your current run. Values stay in this console and
+              are omitted from copied curl commands. Add X-Lab-Workspace and
+              Authorization yourself when using a terminal.
+            </p>
+            <label>
+              Workspace header
+              <input
+                aria-label="Workspace header"
+                value={workspace}
+                onChange={(e) => setWorkspace(e.target.value)}
+              />
+            </label>
+            <label>
+              Demo bearer token
+              <input
+                aria-label="Demo bearer token"
+                value={session}
+                onChange={(e) => setSession(e.target.value)}
+              />
+            </label>
+          </details>
           <div className="lab-request-line">
-            <b>GET</b>
+            <b>{method}</b>
             <code data-testid="request-url">{url}</code>
           </div>
           <button className="lab-primary" disabled={busy} type="submit">
@@ -204,9 +327,10 @@ export function APIExplorer({
           Prices use integer paise: 100 paise = ₹1.
         </p>
         <p className="lab-muted">
-          This stage has read-only endpoints and fixed sample data.
-          Authentication, writes and database resets arrive in later stages.
-          Requests here use only the lab API.
+          The baseline catalogue stays fixed. Practice store adds isolated
+          carts, orders, inventory writes and demo role sessions. Open Practice
+          workspace headers above to use your run in this console. Requests here
+          use only the lab API.
         </p>
       </section>
     </div>

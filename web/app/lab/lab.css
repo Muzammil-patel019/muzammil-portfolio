@@ -1502,3 +1502,178 @@ html[data-theme="dark"] main.lab-app :is(.lab-text-link, .lab-reset) {
 html[data-theme="dark"] main.lab-app .lab-stats > button {
   background: transparent;
 }
+.lab-run-controls,
+.lab-role-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.lab-run-controls label,
+.lab-role-form label {
+  flex: 1;
+  min-width: 180px;
+}
+.lab-run-controls select,
+.lab-role-form select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.lab-role-form p {
+  font-size: 11px;
+  color: var(--lab-muted);
+}
+.lab-run-message {
+  font-size: 12px;
+  color: #ab724e;
+  margin: 15px 0 !important;
+  overflow-wrap: anywhere;
+}
+.lab-run-tokens {
+  margin: 22px 0;
+  font-size: 12px;
+}
+.lab-run-tokens summary {
+  cursor: pointer;
+}
+.lab-run-tokens p {
+  margin: 14px 0;
+  color: var(--lab-muted);
+}
+.lab-run-tokens :is(input, textarea) {
+  width: 100%;
+  margin: 8px 0;
+  display: block;
+  font: 11px monospace;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.lab-run-tokens textarea {
+  min-height: 90px;
+  background: var(--lab-surface);
+  color: var(--lab-ink);
+  border: 1px solid var(--lab-line);
+  border-radius: 8px;
+}
+.lab-run-products {
+  margin: 25px 0;
+}
+.lab-run-products .lab-product-info p {
+  font-size: 11px;
+  margin: 10px 0;
+}
+.lab-run-products .lab-product-info > button {
+  width: 100%;
+}
+.lab-inventory-edit {
+  margin-top: 15px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.lab-inventory-edit input {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.lab-inventory-edit button {
+  grid-column: 1/-1;
+}
+.lab-cart-row,
+.lab-order-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  justify-content: space-between;
+  border-top: 1px solid var(--lab-line);
+  padding: 18px 0;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.lab-cart-row span {
+  flex: 1;
+}
+.lab-order-row h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.lab-order-row p {
+  font-size: 11px;
+  color: var(--lab-muted);
+  margin: 8px 0;
+}
+.lab-order-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lab-audit {
+  max-height: 320px;
+  overflow: auto;
+}
+.lab-audit p {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--lab-line);
+  font-size: 10px;
+  color: var(--lab-muted);
+  flex-wrap: wrap;
+}
+.lab-token-code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 15px;
+  background: var(--lab-soft);
+}
+@media (max-width: 650px) {
+  .lab-run-controls > button,
+  .lab-role-form > button {
+    flex: 1;
+    min-width: 130px;
+  }
+  .lab-inventory-edit {
+    grid-template-columns: 1fr;
+  }
+}
+.lab-console-body {
+  width: 100%;
+  min-height: 140px;
+  background: var(--lab-surface);
+  color: var(--lab-ink);
+  border: 1px solid var(--lab-line);
+  border-radius: 8px;
+  padding: 12px;
+  font: 12px/1.8 monospace;
+  margin-top: 7px;
+}
+.lab-role-form input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+@media (max-width: 650px) {
+  .lab-sidebar nav {
+    flex-wrap: wrap;
+  }
+  .lab-sidebar nav button {
+    min-width: 40%;
+  }
+}
+.lab-milestone-notes {
+  margin-top: 16px;
+  font-size: 11px;
+}
+.lab-milestone-notes summary {
+  cursor: pointer;
+  color: var(--lab-ink);
+}
+.lab-milestone-notes p {
+  margin: 12px 0;
+}
+.lab-milestone-notes code {
+  overflow-wrap: anywhere;
+}

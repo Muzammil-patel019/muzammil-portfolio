@@ -13,7 +13,7 @@ export const milestones = [
     description:
       "Start with small pytest API tests and a Playwright browser check.",
     topics: "Arrange · Act · Assert",
-    available: false,
+    available: true,
   },
   {
     number: 3,
@@ -21,7 +21,7 @@ export const milestones = [
     description:
       "Extract fixtures, an API client and page objects from real repetition.",
     topics: "Configuration · fixtures · page objects",
-    available: false,
+    available: true,
   },
   {
     number: 4,
@@ -29,14 +29,14 @@ export const milestones = [
     description:
       "Add customers and admins, then test sessions and access rules.",
     topics: "Authentication · authorization",
-    available: false,
+    available: true,
   },
   {
     number: 5,
     title: "Complete a purchase",
     description: "Introduce carts, coupons and a checkout with fake payments.",
     topics: "Business rules · boundary cases",
-    available: false,
+    available: true,
   },
   {
     number: 6,
@@ -44,7 +44,7 @@ export const milestones = [
     description:
       "Build isolated accounts, seed/reset endpoints and database checks.",
     topics: "Setup · teardown · isolation",
-    available: false,
+    available: true,
   },
   {
     number: 7,
@@ -52,28 +52,28 @@ export const milestones = [
     description:
       "Enable controlled delays, rejected payments and expired sessions.",
     topics: "Timeouts · traces · debugging",
-    available: false,
+    available: true,
   },
   {
     number: 8,
     title: "Run in CI",
     description: "Add GitHub Actions, reports and failure artifacts.",
     topics: "Pipelines · screenshots · reports",
-    available: false,
+    available: true,
   },
   {
     number: 9,
     title: "Go beyond happy paths",
     description: "Test webhooks, accessibility and small local load scenarios.",
     topics: "Events · accessibility · performance",
-    available: false,
+    available: true,
   },
   {
     number: 10,
     title: "Ship with confidence",
     description: "Use preview deployments, smoke tests and release checks.",
     topics: "Environments · release verification",
-    available: false,
+    available: true,
   },
 ];
 export const exercises = [
@@ -163,3 +163,69 @@ export const exercises = [
     hint: "This first stage has immutable server data. Reset clears your browser workspace; database resets arrive in Stage 6.",
   },
 ];
+
+export const milestoneNotes: Record<
+  number,
+  { try: string; expected: string; source: string }
+> = {
+  1: {
+    try: "Compare the storefront search with GET /api/lab/products?q=Orbit in API Explorer.",
+    expected:
+      "One matching product; an unmatched search returns 200 with an empty data array.",
+    source: "web/lib/lab/catalogue.ts",
+  },
+  2: {
+    try: "Download the starter. Run its two API tests, then the browser test. Change one expected value and inspect the failure.",
+    expected:
+      "You can explain arrange, act and assert without relying on a helper to hide them.",
+    source: "automation-lab-starter/tests/",
+  },
+  3: {
+    try: "Download the framework. Follow test_search through the store, page and browser fixtures. Run pytest -m smoke -v.",
+    expected:
+      "A browser context is isolated per test. Failure screenshots and traces are retained in artifacts/.",
+    source: "automation-lab-framework/conftest.py",
+  },
+  4: {
+    try: "Create a practice run. Sign in as customer, support and admin. Try a PATCH inventory request as customer, then as admin.",
+    expected:
+      "Customer gets 403; admin can edit. Sign-out and reset invalidate the corresponding demo sessions.",
+    source: "web/lib/lab/session.ts",
+  },
+  5: {
+    try: "Buy two Orbit headphones using SAVE10. Repeat the checkout API request with the same Idempotency-Key. Refund as admin.",
+    expected:
+      "The total is 629820 paise, one order is created, and a refund restores inventory once. No real money moves.",
+    source: "web/lib/lab/commerce.ts",
+  },
+  6: {
+    try: "Create two disposable runs using the API. Change inventory in one. Reset it and try the old session again.",
+    expected:
+      "The other run stays unchanged. Reset returns the first run to seed data and invalidates old sessions. Conflicting writes return 409.",
+    source: "web/supabase/automation-lab.sql",
+  },
+  7: {
+    try: "Use Request scenario in Practice store or Failure scenario in API Explorer. Try unavailable, slow, expired and declined.",
+    expected:
+      "503 does not mutate state, slow adds 750 ms, expired returns 401 and declined checkout preserves the cart.",
+    source: "web/lib/lab/http.ts",
+  },
+  8: {
+    try: "Open the repository Actions tab. Inspect Automation Lab checks, JUnit results and any screenshot/trace artifacts.",
+    expected:
+      "CI builds locally and uses isolated memory data, not personal records or production credentials. Run pytest --commerce to include disposable workflows.",
+    source: ".github/workflows/automation-lab.yml",
+  },
+  9: {
+    try: "Create a pending fake payment. As admin, simulate its paid webhook. Use the receiver API to repeat the same event ID. Also try keyboard navigation and load_smoke.py locally.",
+    expected:
+      "Duplicate provider events are accepted once. The bounded traffic script refuses remote hosts. Keyboard and viewport tests are useful checks, not a complete accessibility audit.",
+    source: "automation-lab-framework/load_smoke.py",
+  },
+  10: {
+    try: "Run smoke/API/UI checks, inspect the PR preview, review the diff and verify the deployed commit and READY status before using the release.",
+    expected:
+      "You can distinguish a passing local build, a passing CI run and an actual deployed version. Check each rather than assuming one proves the others.",
+    source: "automation-lab-framework/README.md",
+  },
+};

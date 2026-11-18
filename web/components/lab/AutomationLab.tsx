@@ -5,15 +5,18 @@ import { labMoney, type Product, type listProducts } from "@/lib/lab/catalogue";
 import { exercises } from "@/lib/lab/learning";
 import { ProductArt } from "./ProductArt";
 import { APIExplorer } from "./APIExplorer";
+import { PracticeStore } from "./PracticeStore";
 import { LearningPath } from "./LearningPath";
-type View = "store" | "api" | "learn";
+type View = "store" | "api" | "learn" | "practice";
 type Catalogue = ReturnType<typeof listProducts>;
 const storageKey = "mp-automation-lab-progress-v1";
 export function AutomationLab() {
   const params = useSearchParams(),
     initial = params.get("view"),
     [view, setView] = useState<View>(
-      initial === "api" || initial === "learn" ? initial : "store",
+      initial === "api" || initial === "learn" || initial === "practice"
+        ? initial
+        : "store",
     );
   const [search, setSearch] = useState(""),
     [query, setQuery] = useState(""),
@@ -35,7 +38,11 @@ export function AutomationLab() {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const value = params.get("view");
-    setView(value === "api" || value === "learn" ? value : "store");
+    setView(
+      value === "api" || value === "learn" || value === "practice"
+        ? value
+        : "store",
+    );
   }, [params]);
   useEffect(() => {
     try {
@@ -176,7 +183,9 @@ export function AutomationLab() {
       ? "A little shop. A lot to test."
       : view === "api"
         ? "Look under the hood."
-        : "Learn it. Build it. Test it.";
+        : view === "practice"
+          ? "Make a change. Prove it works."
+          : "Learn it. Build it. Test it.";
   return (
     <main className="lab-app">
       <aside className="lab-sidebar">
@@ -193,6 +202,7 @@ export function AutomationLab() {
               { id: "store", label: "Storefront", icon: "01" },
               { id: "api", label: "API Explorer", icon: "02" },
               { id: "learn", label: "Learning path", icon: "03" },
+              { id: "practice", label: "Practice store", icon: "04" },
             ] as const
           ).map((n) => (
             <button
@@ -209,7 +219,7 @@ export function AutomationLab() {
         <div className="lab-sidebar-bottom">
           <div className="lab-stage">
             <span className="lab-dot" />
-            STAGE 01 IS LIVE
+            PRACTICE WORKFLOWS LIVE
             <h3>
               Start small.
               <br />
@@ -252,7 +262,9 @@ export function AutomationLab() {
         </header>
         <section className="lab-hero">
           <div>
-            <p className="lab-eyebrow">AUTOMATION LAB / FOUNDATION</p>
+            <p className="lab-eyebrow">
+              AUTOMATION LAB / ENGINEERING PLAYGROUND
+            </p>
             <h1>{title}</h1>
             <p>
               {view === "store"
@@ -505,6 +517,7 @@ export function AutomationLab() {
             </section>
           </>
         )}
+        {view === "practice" && <PracticeStore />}
         {view === "api" && <APIExplorer key={apiPath} selectedPath={apiPath} />}
         {view === "learn" && (
           <LearningPath
@@ -515,7 +528,7 @@ export function AutomationLab() {
         )}
         <footer className="lab-footer">
           <span>
-            Automation Lab <b>v1.0 / Foundation</b>
+            Automation Lab <b>v2.0 / Workflows</b>
           </span>
           <span>Fictional data · No real purchases · No account needed</span>
         </footer>
