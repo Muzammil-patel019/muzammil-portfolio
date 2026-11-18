@@ -1,0 +1,61 @@
+name: Automation Lab checks
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'automation-lab-framework/**', '.github/workflows/automation-lab.yml']
+  pull_request:
+    paths: ['web/**', 'automation-lab-framework/**', '.github/workflows/automation-lab.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LAB_STORE_MODE: memory
+      # Public throwaway key for isolated CI only. Vercel uses a separate private signing key.
+      LAB_SESSION_SECRET: ci-only-throwaway-automation-lab-signing-key-not-for-production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install app
+        run: npm --prefix web ci
+      - name: Unit and database policy tests
+        run: npm --prefix web test
+      - name: Build practice app
+        run: npm --prefix web run build
+      - name: Install Python framework
+        run: |
+          python3 -m venv /tmp/lab-tests
+          /tmp/lab-tests/bin/python -m pip install -r automation-lab-framework/requirements.txt
+          /tmp/lab-tests/bin/python -m playwright install --with-deps chromium
+      - name: Start app
+        run: |
+          npm --prefix web start > /tmp/lab-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/lab/health; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: API, UI and disposable commerce tests
+        working-directory: automation-lab-framework
+        run: /tmp/lab-tests/bin/python -m pytest --commerce -v --junitxml=artifacts/results.xml
+      - name: Local bounded traffic check
+        working-directory: automation-lab-framework
+        run: /tmp/lab-tests/bin/python load_smoke.py
+      - name: Keep test reports and failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: automation-lab-results
+          path: automation-lab-framework/artifacts/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { milestones, exercises } from "@/lib/lab/learning";
+import { milestones, exercises, milestoneNotes } from "@/lib/lab/learning";
 export function LearningPath({
   completed,
   onToggle,
@@ -27,9 +27,15 @@ export function LearningPath({
           <a className="lab-text-link" href="/lab/starter.zip" download>
             Download Python starter ↓
           </a>
+          <a className="lab-text-link" href="/lab/framework.zip" download>
+            Download test framework ↓
+          </a>
+          <a className="lab-text-link" href="/lab?view=practice">
+            Open practice store →
+          </a>
         </div>
         <div className="lab-learning-card">
-          <span>STAGE 01 / 10</span>
+          <span>EXPLORE → BUILD → VERIFY</span>
           <strong>
             {completed.length}
             <small> / 10</small>
@@ -140,6 +146,16 @@ export function LearningPath({
                 <h3>{m.title}</h3>
                 <p>{m.description}</p>
                 <code>{m.topics}</code>
+                <details className="lab-milestone-notes">
+                  <summary>Open this milestone</summary>
+                  <p>
+                    <b>Try:</b> {milestoneNotes[m.number]?.try}
+                  </p>
+                  <p>
+                    <b>Expected:</b> {milestoneNotes[m.number]?.expected}
+                  </p>
+                  <code>{milestoneNotes[m.number]?.source}</code>
+                </details>
               </div>
             </article>
           ))}

@@ -11,3 +11,6 @@ web/playwright-report/
 **/__pycache__/
 **/.pytest_cache/
 automation-lab-starter/.venv/
+
+automation-lab-framework/.venv/
+automation-lab-framework/artifacts/
