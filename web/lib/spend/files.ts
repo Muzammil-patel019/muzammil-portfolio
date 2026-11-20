@@ -1,113 +1,7 @@
-import { parseDelimited, parseAmount } from "./analyzer";
+import { parseDelimited } from "./analyzer";
+import { groupPDFLines, pdfTable, type PDFLine } from "./pdf";
+export { pdfTable, type PDFLine } from "./pdf";
 export type StatementSheet = { name: string; rows: string[][] };
-export type PDFLine = { cells: { text: string; x: number; width: number }[] };
-export function pdfTable(pages: PDFLine[][]) {
-  const all = pages.flat(),
-    header = all.find((line) => {
-      const s = line.cells.map((c) => c.text).join(" ");
-      return /debit|withdrawal/i.test(s) && /credit|deposit/i.test(s);
-    });
-  const findAnchor = (pattern: RegExp) =>
-    header?.cells.find((c) => pattern.test(c.text));
-  const d = findAnchor(/debit|withdrawal/i),
-    c = findAnchor(/credit|deposit/i),
-    balance = findAnchor(/balance/i),
-    separate = !!(d && c);
-  const rows: string[][] = [
-      separate
-        ? ["Date", "Description", "Debit", "Credit"]
-        : ["Date", "Description", "Amount", "Type"],
-    ],
-    warnings: string[] = [];
-  let ambiguous = 0;
-  const dateRegex =
-    /^(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/](?:\d{1,2}|[A-Za-z]{3,9})(?:[-/]\d{2,4})?)\s+(.*)$/;
-  for (const line of all) {
-    const text = line.cells
-        .map((c) => c.text)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim(),
-      match = dateRegex.exec(text);
-    if (!match) continue;
-    if (separate && d && c) {
-      const anchors = [
-        { key: "debit", cell: d },
-        { key: "credit", cell: c },
-        ...(balance ? [{ key: "balance", cell: balance }] : []),
-      ];
-      let debit = "",
-        credit = "";
-      const first = Math.min(d.x, c.x) - 15;
-      const amounts = line.cells.filter(
-        (v) =>
-          v.x >= first &&
-          /^[₹\s\d,().+\-]*(?:\.\d{1,2})?\s*(?:CR|DR)?$/i.test(v.text) &&
-          /\d/.test(v.text),
-      );
-      for (const value of amounts) {
-        const center = value.x + value.width / 2,
-          nearest = anchors
-            .slice()
-            .sort(
-              (a, b) =>
-                Math.abs(center - a.cell.x - a.cell.width / 2) -
-                Math.abs(center - b.cell.x - b.cell.width / 2),
-            )[0];
-        if (nearest.key === "debit") debit = value.text;
-        if (nearest.key === "credit") credit = value.text;
-      }
-      const description = line.cells
-        .filter((v) => v.x < first)
-        .map((v) => v.text)
-        .join(" ")
-        .replace(
-          new RegExp(
-            "^" + match[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*",
-          ),
-          "",
-        )
-        .trim();
-      if ((debit || credit) && description)
-        rows.push([match[1], description, debit, credit]);
-      else ambiguous++;
-    } else {
-      const amounts = [
-        ...match[2].matchAll(
-          /(?:[₹$£€]\s*)?[+-]?\(?\d[\d,]*\.\d{2}\)?\s*(?:CR|DR)?/gi,
-        ),
-      ];
-      const amount = amounts.at(-1);
-      if (
-        amounts.length !== 1 ||
-        !amount ||
-        !new RegExp(
-          amount[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*$",
-          "i",
-        ).test(match[2])
-      ) {
-        ambiguous++;
-        continue;
-      }
-      try {
-        parseAmount(amount[0]);
-        rows.push([
-          match[1],
-          match[2].slice(0, amount.index).trim(),
-          amount[0],
-          /\bCR\b/i.test(amount[0]) ? "credit" : "",
-        ]);
-      } catch {
-        ambiguous++;
-      }
-    }
-  }
-  if (ambiguous)
-    warnings.push(
-      `${ambiguous} date-like PDF rows had ambiguous amounts or columns and were not imported. Use the bank CSV/XLSX export to include them reliably.`,
-    );
-  return { rows, warnings };
-}
 export async function readStatementFile(
   file: File,
   password: string,
@@ -180,30 +74,29 @@ export async function readStatementFile(
       progress(`Reading PDF page ${i} of ${document.numPages} on this device…`);
       const page = await document.getPage(i),
         content = await page.getTextContent(),
-        groups = new Map<number, PDFLine["cells"]>();
+        items: { text: string; x: number; y: number; width: number }[] = [];
       for (const item of content.items) {
         if (!("str" in item) || !item.str.trim()) continue;
-        const y = Math.round(item.transform[5] / 2) * 2,
-          items = groups.get(y) || [];
         items.push({
-          text: item.str.trim(),
+          text: item.str,
           x: item.transform[4],
+          y: item.transform[5],
           width: item.width,
         });
-        groups.set(y, items);
       }
-      pages.push(
-        [...groups.entries()]
-          .sort((a, b) => b[0] - a[0])
-          .map(([, cells]) => ({ cells: cells.sort((a, b) => a.x - b.x) })),
-      );
+      pages.push(groupPDFLines(items));
       page.cleanup();
     }
     const result = pdfTable(pages);
-    if (result.rows.length < 2)
+    if (result.rows.length < 2) {
+      if (!result.textLines)
+        throw Error(
+          "No readable text was found in this PDF. It may be a scanned statement. Local OCR is not available yet; use the bank CSV/XLSX export.",
+        );
       throw Error(
-        "No reliable text transaction rows were found. Scanned PDFs need OCR, which is not enabled. Use the bank CSV/XLSX export, or a text-based PDF.",
+        `Readable text was found on ${document.numPages} page(s), but the transaction layout could not be recognised (${result.datedRows} date-like rows). This does not mean the PDF is scanned. No transactions were imported. Try a bank CSV/XLSX export; your file and password stayed on this device.`,
       );
+    }
     return {
       sheets: [{ name: "PDF transactions", rows: result.rows }],
       warnings: [

@@ -141,13 +141,14 @@ test("encrypted backup restores edits locally and rejects an incorrect passphras
   await expect(page.getByLabel("Statement totals")).toHaveCount(0);
 });
 // A real, tiny PDF with a cross-reference table: exercises the self-hosted PDF.js worker.
-function pdfFixture() {
+function pdfFixture(customStream?: string) {
   const stream =
+    customStream ||
     "BT /F1 12 Tf 40 760 Td (Date Description Amount) Tj 0 -25 Td (01/11/2026 SYNTHETIC SHOP 100.00) Tj 0 -25 Td (02/11/2026 Interest charge 20.00) Tj ET";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 800 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
   ];
@@ -252,4 +253,87 @@ test("password-protected PDFs stay local and retry with the correct password", a
     "",
   );
   expect(writes).toEqual([]);
+});
+
+test("ICICI-style card PDF handles split baselines, posting dates, reward points and wrapped credits locally", async ({
+  page,
+}) => {
+  await open(page);
+  const at = (x: number, y: number, text: string) =>
+    `BT /F1 9 Tf 1 0 0 1 ${x} ${y} Tm (${text.replaceAll("(", "\\(").replaceAll(")", "\\)")}) Tj ET`;
+  const stream = [
+    at(10, 760, "Transaction Date"),
+    at(110, 760, "Posting Date"),
+    at(210, 760, "Transaction Details"),
+    at(490, 760, "Amount(INR)"),
+    at(640, 760, "Reward Points"),
+    at(10, 720.8, "01/11/2026"),
+    at(110, 720.3, "02/11/2026"),
+    at(210, 719.6, "SYNTHETIC AMAZON SHOP"),
+    at(510, 720.1, "1,250.00"),
+    at(655, 720, "25"),
+    at(10, 690, "03 Nov 2026"),
+    at(110, 690, "04 Nov 2026"),
+    at(210, 690, "PAYMENT RECEIVED"),
+    at(210, 678, "THANK YOU"),
+    at(510, 678, "1,000.00"),
+    at(575, 678, "CR"),
+    at(655, 678, "0"),
+    at(10, 650, "05.11.2026"),
+    at(110, 650, "06.11.2026"),
+    at(210, 650, "Finance charge"),
+    at(510, 650, "49.00"),
+    at(655, 650, "0"),
+  ].join("\n");
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST") writes.push(r.url());
+  });
+  await page
+    .getByLabel("Statement file", { exact: true })
+    .setInputFiles({
+      name: "synthetic-icici.pdf",
+      mimeType: "application/pdf",
+      buffer: pdfFixture(stream),
+    });
+  await page
+    .getByRole("button", { name: "Read statement", exact: true })
+    .click();
+  await expect(
+    page.getByText("3 transactions ready", { exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  await page
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  const metrics = page.getByLabel("Statement totals");
+  await expect(metrics).toContainText("₹1,250.00");
+  await expect(metrics).toContainText("₹49.00");
+  await expect(metrics).toContainText("₹1,000.00");
+  expect(writes).toEqual([]);
+});
+test("readable unsupported PDFs are distinguished from scans without importing guessed rows", async ({
+  page,
+}) => {
+  await open(page);
+  await page
+    .getByLabel("Statement file", { exact: true })
+    .setInputFiles({
+      name: "synthetic-unsupported.pdf",
+      mimeType: "application/pdf",
+      buffer: pdfFixture(
+        "BT /F1 12 Tf 40 760 Td (Synthetic readable statement with an unsupported table layout) Tj ET",
+      ),
+    });
+  await page
+    .getByRole("button", { name: "Read statement", exact: true })
+    .click();
+  await expect(
+    page.locator(".spend-analyzer").getByRole("alert"),
+  ).toContainText("Readable text was found");
+  await expect(
+    page.locator(".spend-analyzer").getByRole("alert"),
+  ).toContainText("does not mean the PDF is scanned");
+  await expect(
+    page.getByRole("button", { name: "Confirm import", exact: true }),
+  ).toHaveCount(0);
 });

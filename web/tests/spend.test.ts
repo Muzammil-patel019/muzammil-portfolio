@@ -201,3 +201,102 @@ test("encrypted backups round-trip locally, randomize ciphertext and reject wron
   );
   await assert.rejects(encryptSpend(doc, "short"), /10 characters/);
 });
+
+test("ICICI-style PDFs accept two dates, named/dotted dates, wrapped rows and reward columns without adding points to amounts", async () => {
+  const { pdfTable, groupPDFLines } = await import("../lib/spend/pdf");
+  const cell = (text: string, x: number, width = 60) => ({ text, x, width });
+  const result = pdfTable([
+    [
+      {
+        cells: [
+          cell("Transaction Date", 10),
+          cell("Posting Date", 100),
+          cell("Transaction Details", 200, 150),
+          cell("Amount(INR)", 480, 100),
+          cell("Reward Points", 630, 80),
+        ],
+      },
+      {
+        cells: [
+          cell("01/11/2026", 10),
+          cell("02/11/2026", 100),
+          cell("SYNTHETIC AMAZON SHOP", 200, 200),
+          cell("1,250.00", 510),
+          cell("25", 650),
+        ],
+      },
+      {
+        cells: [
+          cell("03 Nov 2026", 10),
+          cell("04 Nov 2026", 100),
+          cell("PAYMENT RECEIVED", 200, 200),
+        ],
+      },
+      {
+        cells: [
+          cell("THANK YOU", 200),
+          cell("1,000.00", 510),
+          cell("CR", 575, 15),
+          cell("0", 650),
+        ],
+      },
+      {
+        cells: [
+          cell("05.11.2026", 10),
+          cell("06.11.2026", 100),
+          cell("Finance charge", 200, 200),
+          cell("49.00", 510),
+          cell("0", 650),
+        ],
+      },
+    ],
+  ]);
+  assert.equal(result.rows.length, 4);
+  assert.deepEqual(result.rows[1], [
+    "01/11/2026",
+    "SYNTHETIC AMAZON SHOP",
+    "1250.00",
+    "",
+  ]);
+  assert.deepEqual(result.rows[2], [
+    "03 Nov 2026",
+    "PAYMENT RECEIVED THANK YOU",
+    "",
+    "1000.00",
+  ]);
+  assert.deepEqual(result.rows[3], [
+    "05/11/2026",
+    "Finance charge",
+    "49.00",
+    "",
+  ]);
+  assert.equal(result.warnings.length, 0);
+  const lines = groupPDFLines([
+    { text: "01/11/2026", x: 10, y: 699.1, width: 80 },
+    { text: "SHOP", x: 180, y: 698.9, width: 80 },
+    { text: "100.00", x: 510, y: 700.2, width: 60 },
+  ]);
+  assert.equal(lines.length, 1);
+  assert.equal(pdfTable([lines]).rows.length, 2);
+});
+test("headerless card rows preserve credit markers and don't guess between forex amounts", async () => {
+  const { pdfTable } = await import("../lib/spend/pdf");
+  const line = (text: string) => ({ cells: [{ text, x: 10, width: 600 }] });
+  const result = pdfTable([
+    [
+      line("1 01 NOV 2026 02 NOV 2026 SYNTHETIC STORE 100.00 Dr"),
+      line("03Nov2026 REFUND 25.00Cr"),
+      line("04/11/2026 FX PURCHASE 2.00 USD 160.00 INR"),
+      line("05/11/2026 Total amount due 500.00"),
+    ],
+  ]);
+  assert.deepEqual(result.rows[1], [
+    "01 NOV 2026",
+    "SYNTHETIC STORE",
+    "100.00",
+    "",
+  ]);
+  assert.deepEqual(result.rows[2], ["03-Nov-2026", "REFUND", "", "25.00"]);
+  assert.equal(result.rows.length, 3);
+  assert.equal(result.datedRows, 4);
+});
