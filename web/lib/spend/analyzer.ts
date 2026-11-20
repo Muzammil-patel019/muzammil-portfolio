@@ -256,7 +256,8 @@ export function parseStatementDate(
 ): string | null {
   const text = raw
     .trim()
-    .replace(/^(\d{1,2})\s+([a-z]{3,9})\s+(\d{2,4})$/i, "$1-$2-$3")
+    .replace(/^(\d{1,2})\s+([a-z]{3,9})\s+(\d{2,4})(?=\s|$)/i, "$1-$2-$3")
+    .replace(/\./g, "/")
     .split(/[T ]/)[0];
   let d: number, m: number, y: number;
   let parts = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(text);
