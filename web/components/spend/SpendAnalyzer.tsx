@@ -58,7 +58,7 @@ function Bars({
         <p className="cards-note">No matching transactions.</p>
       ) : (
         <ul>
-          {items.slice(0, 10).map((i) => (
+          {items.map((i) => (
             <li key={i.label}>
               <div>
                 <span title={i.label}>{i.label}</span>
@@ -103,7 +103,8 @@ export default function SpendAnalyzer() {
   const sequence = useRef(0),
     controller = useRef<AbortController | null>(null),
     fileInput = useRef<HTMLInputElement>(null),
-    backupInput = useRef<HTMLInputElement>(null);
+    backupInput = useRef<HTMLInputElement>(null),
+    editorRef = useRef<HTMLFormElement>(null);
   useEffect(
     () => () => {
       sequence.current++;
@@ -120,6 +121,19 @@ export default function SpendAnalyzer() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [doc.transactions.length]);
+  useEffect(() => {
+    if (!edit) return;
+    const frame = requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({
+        block: "center",
+        behavior: "instant",
+      });
+      editorRef.current
+        ?.querySelector<HTMLInputElement>("input")
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [edit?.id]);
   const preview = useMemo(() => {
     if (!pending || !mapping) return null;
     try {
@@ -157,6 +171,8 @@ export default function SpendAnalyzer() {
         .sort((a, b) => b.date.localeCompare(a.date)),
     [filtered, search, feesOnly],
   );
+  const pageCount = Math.max(1, Math.ceil(visible.length / 30));
+  const currentPage = Math.min(page, pageCount - 1);
   const duplicateIds = useMemo(() => {
     const keys = new Set<string>(),
       ids = new Set<string>();
@@ -707,13 +723,13 @@ export default function SpendAnalyzer() {
               format={format}
             />
             <Bars
-              title="Monthly outflows"
-              items={totals.months}
+              title="Monthly outflows · latest 12 months"
+              items={totals.months.slice(-12)}
               format={format}
             />
             <Bars
               title="Top payment descriptions"
-              items={totals.merchants}
+              items={totals.merchants.slice(0, 10)}
               format={format}
             />
           </div>
@@ -758,6 +774,7 @@ export default function SpendAnalyzer() {
             {edit && (
               <form
                 className="spend-editor"
+                ref={editorRef}
                 onSubmit={(e) => {
                   e.preventDefault();
                   const amount = Number(editAmount);
@@ -889,18 +906,7 @@ export default function SpendAnalyzer() {
                 </thead>
                 <tbody>
                   {visible
-                    .slice(
-                      Math.min(
-                        page,
-                        Math.max(0, Math.ceil(visible.length / 30) - 1),
-                      ) * 30,
-                      (Math.min(
-                        page,
-                        Math.max(0, Math.ceil(visible.length / 30) - 1),
-                      ) +
-                        1) *
-                        30,
-                    )
+                    .slice(currentPage * 30, (currentPage + 1) * 30)
                     .map((t) => (
                       <tr
                         key={t.id}
@@ -967,22 +973,17 @@ export default function SpendAnalyzer() {
             </div>
             <div className="spend-actions">
               <button
-                disabled={page <= 0}
-                onClick={() => setPage((p) => p - 1)}
+                disabled={currentPage === 0}
+                onClick={() => setPage(currentPage - 1)}
               >
                 Previous
               </button>
               <span>
-                Page{" "}
-                {Math.min(
-                  page + 1,
-                  Math.max(1, Math.ceil(visible.length / 30)),
-                )}{" "}
-                of {Math.max(1, Math.ceil(visible.length / 30))}
+                Page {currentPage + 1} of {pageCount}
               </span>
               <button
-                disabled={(page + 1) * 30 >= visible.length}
-                onClick={() => setPage((p) => p + 1)}
+                disabled={currentPage + 1 >= pageCount}
+                onClick={() => setPage(currentPage + 1)}
               >
                 Next
               </button>

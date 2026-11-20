@@ -52,6 +52,9 @@ test("local statement flow reconciles totals, supports review, and never uploads
   await expect(metrics).toContainText("₹0.00");
   await row.getByRole("button", { name: "Include", exact: true }).click();
   await row.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(
+    page.getByLabel("Transaction date", { exact: true }),
+  ).toBeFocused();
   await page.getByLabel("Transaction amount", { exact: true }).fill("1200");
   await page
     .getByRole("button", { name: "Save transaction", exact: true })
@@ -187,14 +190,12 @@ test("XLSX worksheets import locally with explicit debit and credit mapping", as
   page,
 }) => {
   await open(page);
-  await page
-    .getByLabel("Statement file", { exact: true })
-    .setInputFiles({
-      name: "synthetic.xlsx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      buffer: Buffer.from(workbook, "base64"),
-    });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "synthetic.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from(workbook, "base64"),
+  });
   await page
     .getByRole("button", { name: "Read statement", exact: true })
     .click();
@@ -215,13 +216,11 @@ test("password-protected PDFs stay local and retry with the correct password", a
   page.on("request", (r) => {
     if (r.method() === "POST") writes.push(r.postData() || "");
   });
-  await page
-    .getByLabel("Statement file", { exact: true })
-    .setInputFiles({
-      name: "synthetic-protected.pdf",
-      mimeType: "application/pdf",
-      buffer: Buffer.from(encryptedPDF, "base64"),
-    });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "synthetic-protected.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(encryptedPDF, "base64"),
+  });
   await page
     .getByRole("button", { name: "Read statement", exact: true })
     .click();
