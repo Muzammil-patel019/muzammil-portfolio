@@ -76,6 +76,9 @@ function Bars({
 }
 export default function SpendAnalyzer() {
   const [doc, setDoc] = useState<SpendDocument>(empty);
+  const [view, setView] = useState<
+    "import" | "analysis" | "transactions" | "backup"
+  >("import");
   const [file, setFile] = useState<File | null>(null),
     [pdfPassword, setPdfPassword] = useState("");
   const [pending, setPending] = useState<{
@@ -245,6 +248,7 @@ export default function SpendAnalyzer() {
     controller.current?.abort();
     setBusy(false);
     setDoc(empty());
+    setView("import");
     setPending(null);
     setFile(null);
     setBackup(null);
@@ -297,6 +301,7 @@ export default function SpendAnalyzer() {
       const restored = await decryptSpend(await backup.text(), passphrase);
       if (epoch !== sequence.current) return;
       setDoc(restored);
+      setView("analysis");
       setCurrency(restored.transactions[0]?.currency || "INR");
       setSource("");
       setFrom("");
@@ -337,20 +342,43 @@ export default function SpendAnalyzer() {
     );
   return (
     <section className="spend-analyzer" aria-label="Spend Analyzer">
-      <header className="spend-hero">
-        <div>
-          <span className="spend-badge">LOCAL · PRIVATE</span>
-          <h2>Know where your money goes.</h2>
-          <p>
-            Spending, interest and fees — one clear view of your statements.
-          </p>
-        </div>
-        <button onClick={clear}>Clear session</button>
-      </header>
+      <div className="spend-toolbar">
+        <span className="spend-badge">
+          LOCAL · PRIVATE
+          {doc.transactions.length
+            ? ` · ${doc.transactions.length} transactions`
+            : ""}
+        </span>
+        {!!doc.transactions.length && (
+          <button onClick={clear}>Clear session</button>
+        )}
+      </div>
+      <nav className="spend-view-nav" aria-label="Analyzer views">
+        {[
+          { id: "import", label: "Statements" },
+          { id: "analysis", label: "Summary" },
+          { id: "transactions", label: "Transactions" },
+          { id: "backup", label: "Backup" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            aria-pressed={view === item.id}
+            disabled={
+              (item.id === "analysis" || item.id === "transactions") &&
+              !doc.transactions.length
+            }
+            onClick={() => setView(item.id as typeof view)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
       <p className="spend-privacy">
-        Your files, PDF passwords and transactions are processed in this browser
-        and never uploaded. Analysis stays in memory until you clear, refresh or
-        leave. Download an encrypted backup to keep it.
+        Nothing is uploaded. Data clears when you leave or refresh.{" "}
+        <button className="spend-text-button" onClick={() => setView("backup")}>
+          Save an encrypted backup
+        </button>{" "}
+        to keep it.
       </p>
       <p role="status" aria-live="polite">
         {message}
@@ -360,683 +388,719 @@ export default function SpendAnalyzer() {
           {error}
         </p>
       )}
-      <section className="cards-panel">
-        <h3>1. Open a statement</h3>
-        <p className="cards-note">
-          CSV, XLSX or text-based PDF · up to 20 MB. Scanned PDFs need a bank
-          CSV/XLSX export. PDF layouts vary; always compare the preview and
-          imported totals with your statement.
-        </p>
-        <div className="spend-fields">
-          <Field label="Statement file">
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".csv,.txt,.xlsx,.pdf"
-              disabled={busy}
-              onChange={(e) => {
-                setFile(e.target.files?.[0] || null);
-                setPending(null);
-                setPdfPassword("");
-                setError("");
-              }}
-            />
-          </Field>
-          <Field label="PDF password (only if needed)">
-            <input
-              type="password"
-              autoComplete="off"
-              value={pdfPassword}
-              onChange={(e) => setPdfPassword(e.target.value)}
-            />
-          </Field>
-        </div>
-        <div className="spend-actions">
-          <button disabled={!file || busy} onClick={read}>
-            {busy ? "Working locally…" : "Read statement"}
-          </button>
-          {busy && (
-            <button
-              onClick={() => {
-                sequence.current++;
-                controller.current?.abort();
-                setBusy(false);
-                setMessage("Cancelled.");
-              }}
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </section>
-      {pending && mapping && preview && (
-        <section className="cards-panel spend-import">
-          <h3>2. Check before importing</h3>
-          {pending.warnings.map((w) => (
-            <p className="cards-notice" key={w}>
-              {w}
-            </p>
-          ))}
-          <div className="spend-fields">
-            <Field label="Worksheet">
-              <select
-                value={sheet}
-                onChange={(e) => {
-                  const index = Number(e.target.value);
-                  setSheet(index);
-                  setMapping(detectMapping(pending.sheets[index].rows));
-                }}
-              >
-                {pending.sheets.map((s, i) => (
-                  <option key={i} value={i}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Header row number">
-              <input
-                type="number"
-                min={1}
-                max={pending.sheets[sheet].rows.length}
-                value={mapping.headerRow + 1}
-                onChange={(e) => {
-                  const index = Math.max(
-                    0,
-                    Math.min(
-                      pending.sheets[sheet].rows.length - 1,
-                      Number(e.target.value) - 1,
-                    ),
-                  );
-                  setMapping({
-                    ...detectMapping(pending.sheets[sheet].rows.slice(index)),
-                    headerRow: index,
-                  });
-                }}
-              />
-            </Field>
-            <Field label="Amount layout">
-              <select
-                value={mapping.mode}
-                onChange={(e) =>
-                  setMapping({
-                    ...mapping,
-                    mode: e.target.value as Mapping["mode"],
-                  })
-                }
-              >
-                <option value="separate">
-                  Separate debit / credit columns
-                </option>
-                <option value="single">One amount column</option>
-              </select>
-            </Field>
-            {col("date", "Date column")}
-            {col("description", "Description column")}
-            {mapping.mode === "separate" ? (
-              <>
-                {col("debit", "Debit column")}
-                {col("credit", "Credit column")}
-              </>
-            ) : (
-              <>
-                {col("amount", "Amount column")}
-                {col("direction", "Debit / credit indicator column")}
-                <Field label="Signed amount convention">
-                  <select
-                    value={mapping.sign}
-                    onChange={(e) =>
-                      setMapping({
-                        ...mapping,
-                        sign: e.target.value as Mapping["sign"],
-                      })
-                    }
-                  >
-                    <option value="positive-debit">
-                      Positive = debit, negative = credit
-                    </option>
-                    <option value="negative-debit">
-                      Negative = debit, positive = credit
-                    </option>
-                  </select>
-                </Field>
-              </>
-            )}
-            <Field label="Date order">
-              <select
-                value={mapping.dateOrder}
-                onChange={(e) =>
-                  setMapping({
-                    ...mapping,
-                    dateOrder: e.target.value as Mapping["dateOrder"],
-                  })
-                }
-              >
-                <option value="DMY">Day / month / year</option>
-                <option value="MDY">Month / day / year</option>
-              </select>
-            </Field>
-            <Field label="Year for dates without a year">
-              <input
-                type="number"
-                min={1970}
-                max={2100}
-                value={mapping.year}
-                onChange={(e) =>
-                  setMapping({ ...mapping, year: Number(e.target.value) })
-                }
-              />
-            </Field>
-            <Field label="Statement currency">
-              <select
-                value={mapping.currency}
-                onChange={(e) =>
-                  setMapping({
-                    ...mapping,
-                    currency: e.target.value as Mapping["currency"],
-                  })
-                }
-              >
-                {["INR", "USD", "EUR", "GBP", "AED", "SAR"].map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+      <div hidden={view !== "import"} className="spend-view-panel">
+        <section className="cards-panel">
+          <h3>Add a statement</h3>
           <p className="cards-note">
-            Currency is assigned to all rows in this import. For
-            foreign-currency cards, map the billed amount column. CR/DR markers
-            and the indicator column override the signed convention. Balance
-            columns are never added to spending.
+            CSV, XLSX or text-based PDF · up to 20 MB. Scanned PDFs need a bank
+            CSV/XLSX export. PDF layouts vary; always compare the preview and
+            imported totals with your statement.
           </p>
-          {preview.error && <p role="alert">{preview.error}</p>}
-          <p>
-            <strong>{preview.transactions.length} transactions ready</strong> ·{" "}
-            {preview.issues.length} rows skipped
-          </p>
-          <details>
-            <summary>View skipped rows ({preview.issues.length})</summary>
-            <ul className="spend-issues">
-              {preview.issues.slice(0, 100).map((i) => (
-                <li key={i.row}>
-                  Row {i.row}: {i.reason}
-                </li>
-              ))}
-            </ul>
-            {preview.issues.length > 100 && (
-              <p>Showing the first 100 issues. Check the original file.</p>
-            )}
-          </details>
-          <div className="spend-table-wrap">
-            <table>
-              <caption>Preview · first 12 transactions</caption>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Direction</th>
-                  <th>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.transactions.slice(0, 12).map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.date}</td>
-                    <td>{t.description}</td>
-                    <td>{t.direction}</td>
-                    <td>
-                      {t.currency} {(t.amountMinor / 100).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="spend-fields">
+            <Field label="Statement file">
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".csv,.txt,.xlsx,.pdf"
+                disabled={busy}
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] || null);
+                  setPending(null);
+                  setPdfPassword("");
+                  setError("");
+                }}
+              />
+            </Field>
+            <Field label="PDF password (only if needed)">
+              <input
+                type="password"
+                autoComplete="off"
+                value={pdfPassword}
+                onChange={(e) => setPdfPassword(e.target.value)}
+              />
+            </Field>
           </div>
-          <button
-            disabled={!preview.transactions.length || !!preview.error || busy}
-            onClick={() => {
-              if (
-                doc.sources.length >= 50 ||
-                doc.transactions.length + preview.transactions.length > 20000
-              ) {
-                setError(
-                  "Session limit: 50 imports and 20,000 transactions. Start a new session after backing up.",
-                );
-                return;
-              }
-              setDoc((d) => ({
-                ...d,
-                sources: [...d.sources, { id: pending.id, name: pending.name }],
-                transactions: [...d.transactions, ...preview.transactions],
-              }));
-              setCurrency(mapping.currency);
-              setPending(null);
-              setFile(null);
-              if (fileInput.current) fileInput.current.value = "";
-              setPage(0);
-              setMessage(
-                "Imported locally. Categories are suggestions: review fees, transfers and possible duplicates.",
-              );
-            }}
-          >
-            Confirm import
-          </button>
+          <div className="spend-actions">
+            <button disabled={!file || busy} onClick={read}>
+              {busy ? "Working locally…" : "Read statement"}
+            </button>
+            {busy && (
+              <button
+                onClick={() => {
+                  sequence.current++;
+                  controller.current?.abort();
+                  setBusy(false);
+                  setMessage("Cancelled.");
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </section>
-      )}
-      {!!doc.transactions.length && (
-        <>
-          <section className="cards-panel">
-            <div className="spend-section-heading">
-              <h3>Your analysis</h3>
-              <span>{doc.transactions.length} imported transactions</span>
-            </div>
+        {pending && mapping && preview && (
+          <section className="cards-panel spend-import">
+            <h3>Check your import</h3>
+            {pending.warnings.map((w) => (
+              <p className="cards-notice" key={w}>
+                {w}
+              </p>
+            ))}
             <div className="spend-fields">
-              <Field label="Analysis currency">
+              <Field label="Worksheet">
                 <select
-                  value={currency}
+                  value={sheet}
                   onChange={(e) => {
-                    setCurrency(e.target.value as typeof currency);
-                    setPage(0);
+                    const index = Number(e.target.value);
+                    setSheet(index);
+                    setMapping(detectMapping(pending.sheets[index].rows));
                   }}
                 >
-                  {[...new Set(doc.transactions.map((t) => t.currency))].map(
-                    (c) => (
-                      <option key={c}>{c}</option>
-                    ),
-                  )}
-                </select>
-              </Field>
-              <Field label="From date">
-                <input
-                  type="date"
-                  value={from}
-                  onChange={(e) => {
-                    setFrom(e.target.value);
-                    setPage(0);
-                  }}
-                />
-              </Field>
-              <Field label="To date">
-                <input
-                  type="date"
-                  value={to}
-                  onChange={(e) => {
-                    setTo(e.target.value);
-                    setPage(0);
-                  }}
-                />
-              </Field>
-              <Field label="Statement">
-                <select
-                  value={source}
-                  onChange={(e) => {
-                    setSource(e.target.value);
-                    setPage(0);
-                  }}
-                >
-                  <option value="">All imported statements</option>
-                  {doc.sources.map((s) => (
-                    <option key={s.id} value={s.id}>
+                  {pending.sheets.map((s, i) => (
+                    <option key={i} value={i}>
                       {s.name}
                     </option>
                   ))}
                 </select>
               </Field>
-            </div>
-            {from && to && from > to && (
-              <p role="alert">From date must be before the to date.</p>
-            )}
-            <p className="cards-note">
-              Totals use the currency, date and statement filters above;
-              currencies are never combined. Transaction search below does not
-              change these totals.
-            </p>
-          </section>
-          <div className="spend-metrics" aria-label="Statement totals">
-            {[
-              ["Spending excluding fees / transfers", totals.purchases],
-              ["Fees, interest & posted tax", totals.charges],
-              ["Transfers & card payments", totals.transfers],
-              ["All credits / refunds", totals.credits],
-            ].map(([label, amount]) => (
-              <div key={label}>
-                <span>{label}</span>
-                <strong>{format(Number(amount))}</strong>
-              </div>
-            ))}
-          </div>
-          <p className="spend-reconcile">
-            Total debits: <strong>{format(totals.outflows)}</strong> = spending
-            + charges + transfers. Fee reversals / credits:{" "}
-            <strong>{format(totals.chargeCredits)}</strong>. Credits can include
-            income or bill repayments; they are shown separately.
-          </p>
-          <div className="spend-charts">
-            <Bars
-              title="Where you spent"
-              items={totals.categories}
-              format={format}
-            />
-            <Bars
-              title="Fees & charges"
-              items={totals.chargesByType}
-              format={format}
-            />
-            <Bars
-              title="Monthly outflows · latest 12 months"
-              items={totals.months.slice(-12)}
-              format={format}
-            />
-            <Bars
-              title="Top payment descriptions"
-              items={totals.merchants.slice(0, 10)}
-              format={format}
-            />
-          </div>
-          <section className="cards-panel">
-            <h3>Review transactions</h3>
-            <p className="cards-note">
-              Labels use simple rules, not AI. Edit incorrect categories and
-              charge types. Excluding a row removes it from totals but keeps it
-              in your history and backup.
-            </p>
-            {!!duplicateIds.size && (
-              <p className="cards-notice">
-                {duplicateIds.size} possible repeated transactions. Flagged rows
-                stay included until you review and exclude them; identical
-                purchases can be genuine.
-              </p>
-            )}
-            <div className="spend-fields">
-              <Field label="Search transactions">
+              <Field label="Header row number">
                 <input
-                  type="search"
-                  value={search}
+                  type="number"
+                  min={1}
+                  max={pending.sheets[sheet].rows.length}
+                  value={mapping.headerRow + 1}
                   onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(0);
+                    const index = Math.max(
+                      0,
+                      Math.min(
+                        pending.sheets[sheet].rows.length - 1,
+                        Number(e.target.value) - 1,
+                      ),
+                    );
+                    setMapping({
+                      ...detectMapping(pending.sheets[sheet].rows.slice(index)),
+                      headerRow: index,
+                    });
                   }}
-                  placeholder="Description, category or date"
                 />
               </Field>
-              <label className="spend-check">
-                <input
-                  type="checkbox"
-                  checked={feesOnly}
-                  onChange={(e) => {
-                    setFeesOnly(e.target.checked);
-                    setPage(0);
-                  }}
-                />
-                Only fees & charges
-              </label>
-            </div>
-            {edit && (
-              <form
-                className="spend-editor"
-                ref={editorRef}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const amount = Number(editAmount);
-                  if (
-                    !Number.isFinite(amount) ||
-                    amount <= 0 ||
-                    amount > 1e10 ||
-                    Math.abs(amount * 100 - Math.round(amount * 100)) > 0.0001
-                  ) {
-                    setError(
-                      "Enter a positive amount with up to two decimal places.",
-                    );
-                    return;
+              <Field label="Amount layout">
+                <select
+                  value={mapping.mode}
+                  onChange={(e) =>
+                    setMapping({
+                      ...mapping,
+                      mode: e.target.value as Mapping["mode"],
+                    })
                   }
-                  update({
-                    ...edit,
-                    amountMinor: Math.round(amount * 100),
-                    reviewed: true,
-                  });
-                  setEdit(null);
-                  setError("");
-                }}
-              >
-                <h4>Edit transaction</h4>
-                <div className="spend-fields">
-                  <Field label="Transaction date">
-                    <input
-                      required
-                      type="date"
-                      min="1970-01-01"
-                      max="2100-12-31"
-                      value={edit.date}
-                      onChange={(e) =>
-                        setEdit({ ...edit, date: e.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Transaction description">
-                    <input
-                      required
-                      maxLength={2000}
-                      value={edit.description}
-                      onChange={(e) =>
-                        setEdit({ ...edit, description: e.target.value })
-                      }
-                    />
-                  </Field>
-                  <Field label="Transaction amount">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      required
-                      value={editAmount}
-                      onChange={(e) => setEditAmount(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Transaction direction">
+                >
+                  <option value="separate">
+                    Separate debit / credit columns
+                  </option>
+                  <option value="single">One amount column</option>
+                </select>
+              </Field>
+              {col("date", "Date column")}
+              {col("description", "Description column")}
+              {mapping.mode === "separate" ? (
+                <>
+                  {col("debit", "Debit column")}
+                  {col("credit", "Credit column")}
+                </>
+              ) : (
+                <>
+                  {col("amount", "Amount column")}
+                  {col("direction", "Debit / credit indicator column")}
+                  <Field label="Signed amount convention">
                     <select
-                      value={edit.direction}
+                      value={mapping.sign}
                       onChange={(e) =>
-                        setEdit({
-                          ...edit,
-                          direction: e.target.value as "debit" | "credit",
+                        setMapping({
+                          ...mapping,
+                          sign: e.target.value as Mapping["sign"],
                         })
                       }
                     >
-                      <option value="debit">Debit</option>
-                      <option value="credit">Credit</option>
+                      <option value="positive-debit">
+                        Positive = debit, negative = credit
+                      </option>
+                      <option value="negative-debit">
+                        Negative = debit, positive = credit
+                      </option>
                     </select>
                   </Field>
-                  <Field label="Transaction category">
+                </>
+              )}
+              <Field label="Date order">
+                <select
+                  value={mapping.dateOrder}
+                  onChange={(e) =>
+                    setMapping({
+                      ...mapping,
+                      dateOrder: e.target.value as Mapping["dateOrder"],
+                    })
+                  }
+                >
+                  <option value="DMY">Day / month / year</option>
+                  <option value="MDY">Month / day / year</option>
+                </select>
+              </Field>
+              <Field label="Year for dates without a year">
+                <input
+                  type="number"
+                  min={1970}
+                  max={2100}
+                  value={mapping.year}
+                  onChange={(e) =>
+                    setMapping({ ...mapping, year: Number(e.target.value) })
+                  }
+                />
+              </Field>
+              <Field label="Statement currency">
+                <select
+                  value={mapping.currency}
+                  onChange={(e) =>
+                    setMapping({
+                      ...mapping,
+                      currency: e.target.value as Mapping["currency"],
+                    })
+                  }
+                >
+                  {["INR", "USD", "EUR", "GBP", "AED", "SAR"].map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <p className="cards-note">
+              Currency is assigned to all rows in this import. For
+              foreign-currency cards, map the billed amount column. CR/DR
+              markers and the indicator column override the signed convention.
+              Balance columns are never added to spending.
+            </p>
+            {preview.error && <p role="alert">{preview.error}</p>}
+            <p>
+              <strong>{preview.transactions.length} transactions ready</strong>{" "}
+              · {preview.issues.length} rows skipped
+            </p>
+            <details>
+              <summary>View skipped rows ({preview.issues.length})</summary>
+              <ul className="spend-issues">
+                {preview.issues.slice(0, 100).map((i) => (
+                  <li key={i.row}>
+                    Row {i.row}: {i.reason}
+                  </li>
+                ))}
+              </ul>
+              {preview.issues.length > 100 && (
+                <p>Showing the first 100 issues. Check the original file.</p>
+              )}
+            </details>
+            <div className="spend-table-wrap">
+              <table>
+                <caption>Preview · first 12 transactions</caption>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Direction</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.transactions.slice(0, 12).map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.date}</td>
+                      <td>{t.description}</td>
+                      <td>{t.direction}</td>
+                      <td>
+                        {t.currency} {(t.amountMinor / 100).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button
+              disabled={!preview.transactions.length || !!preview.error || busy}
+              onClick={() => {
+                if (
+                  doc.sources.length >= 50 ||
+                  doc.transactions.length + preview.transactions.length > 20000
+                ) {
+                  setError(
+                    "Session limit: 50 imports and 20,000 transactions. Start a new session after backing up.",
+                  );
+                  return;
+                }
+                setDoc((d) => ({
+                  ...d,
+                  sources: [
+                    ...d.sources,
+                    { id: pending.id, name: pending.name },
+                  ],
+                  transactions: [...d.transactions, ...preview.transactions],
+                }));
+                setCurrency(mapping.currency);
+                setView("analysis");
+                setPending(null);
+                setFile(null);
+                if (fileInput.current) fileInput.current.value = "";
+                setPage(0);
+                setMessage(
+                  "Imported locally. Review suggested categories in Transactions.",
+                );
+              }}
+            >
+              Confirm import
+            </button>
+          </section>
+        )}
+      </div>
+      {!!doc.transactions.length && (
+        <>
+          <div hidden={view !== "analysis"} className="spend-view-panel">
+            <section className="cards-panel">
+              <div className="spend-section-heading">
+                <h3>Your analysis</h3>
+                <span>{doc.transactions.length} imported transactions</span>
+              </div>
+              <details className="spend-filter-options">
+                <summary>
+                  Filters · {currency}
+                  {from || to
+                    ? ` · ${from || "Start"} to ${to || "Today"}`
+                    : " · All dates"}
+                  {source ? " · One statement" : ""}
+                </summary>
+                <div className="spend-fields">
+                  <Field label="Analysis currency">
                     <select
-                      value={edit.category}
-                      onChange={(e) =>
-                        setEdit({
-                          ...edit,
-                          category: e.target.value as typeof edit.category,
-                        })
-                      }
+                      value={currency}
+                      onChange={(e) => {
+                        setCurrency(e.target.value as typeof currency);
+                        setPage(0);
+                      }}
                     >
-                      {spendCategories.map((c) => (
+                      {[
+                        ...new Set(doc.transactions.map((t) => t.currency)),
+                      ].map((c) => (
                         <option key={c}>{c}</option>
                       ))}
                     </select>
                   </Field>
-                  <Field label="Charge type">
+                  <Field label="From date">
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => {
+                        setFrom(e.target.value);
+                        setPage(0);
+                      }}
+                    />
+                  </Field>
+                  <Field label="To date">
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => {
+                        setTo(e.target.value);
+                        setPage(0);
+                      }}
+                    />
+                  </Field>
+                  <Field label="Statement">
                     <select
-                      value={edit.chargeType}
-                      onChange={(e) =>
-                        setEdit({
-                          ...edit,
-                          chargeType: e.target.value as typeof edit.chargeType,
-                          ...(e.target.value !== "none"
-                            ? { category: "Fees & charges" as const }
-                            : {}),
-                        })
-                      }
+                      value={source}
+                      onChange={(e) => {
+                        setSource(e.target.value);
+                        setPage(0);
+                      }}
                     >
-                      {chargeTypes.map((c) => (
-                        <option key={c} value={c}>
-                          {c === "none" ? "Not a fee / charge" : c}
+                      <option value="">All imported statements</option>
+                      {doc.sources.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
                         </option>
                       ))}
                     </select>
                   </Field>
                 </div>
-                <div className="spend-actions">
-                  <button type="submit">Save transaction</button>
-                  <button type="button" onClick={() => setEdit(null)}>
-                    Cancel edit
-                  </button>
-                </div>
-              </form>
-            )}
-            <div className="spend-table-wrap">
-              <table className="spend-ledger">
-                <caption>
-                  {visible.length} matching transactions · {totals.count}{" "}
-                  included in totals
-                </caption>
-                <thead>
-                  <tr>
-                    <th>Date / status</th>
-                    <th>Description / category</th>
-                    <th>Amount</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible
-                    .slice(currentPage * 30, (currentPage + 1) * 30)
-                    .map((t) => (
-                      <tr
-                        key={t.id}
-                        className={t.excluded ? "spend-excluded" : ""}
-                      >
-                        <td>
-                          {t.date}
-                          <small>
-                            {t.excluded
-                              ? "Excluded"
-                              : t.reviewed
-                                ? "Reviewed"
-                                : "Needs review"}
-                            {duplicateIds.has(t.id)
-                              ? " · Possible duplicate"
-                              : ""}
-                          </small>
-                        </td>
-                        <td>
-                          {t.description}
-                          <small>
-                            {t.category}
-                            {t.chargeType !== "none"
-                              ? " · " + t.chargeType
-                              : ""}
-                          </small>
-                        </td>
-                        <td>
-                          {t.direction === "credit" ? "+ " : "− "}
-                          {format(t.amountMinor)}
-                          <small>{t.direction}</small>
-                        </td>
-                        <td>
-                          <div className="spend-row-actions">
-                            <button
-                              onClick={() => {
-                                setEdit({ ...t });
-                                setEditAmount((t.amountMinor / 100).toFixed(2));
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() =>
-                                update({ ...t, excluded: !t.excluded })
-                              }
-                            >
-                              {t.excluded ? "Include" : "Exclude"}
-                            </button>
-                            <button
-                              aria-pressed={t.reviewed}
-                              onClick={() =>
-                                update({ ...t, reviewed: !t.reviewed })
-                              }
-                            >
-                              {t.reviewed ? "Undo review" : "Reviewed"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="spend-actions">
-              <button
-                disabled={currentPage === 0}
-                onClick={() => setPage(currentPage - 1)}
-              >
-                Previous
-              </button>
-              <span>
-                Page {currentPage + 1} of {pageCount}
-              </span>
-              <button
-                disabled={currentPage + 1 >= pageCount}
-                onClick={() => setPage(currentPage + 1)}
-              >
-                Next
-              </button>
-            </div>
-            <details>
-              <summary>Manage imported statements</summary>
-              {doc.sources.map((s) => (
-                <div className="spend-source" key={s.id}>
-                  <span>{s.name}</span>
-                  <button
-                    onClick={() => {
-                      if (
-                        !confirm(
-                          `Remove ${s.name} and its transactions from this session?`,
-                        )
-                      )
-                        return;
-                      setDoc((d) => ({
-                        ...d,
-                        sources: d.sources.filter((x) => x.id !== s.id),
-                        transactions: d.transactions.filter(
-                          (t) => t.sourceId !== s.id,
-                        ),
-                      }));
-                      if (source === s.id) setSource("");
-                      setEdit(null);
-                    }}
-                  >
-                    Remove statement
-                  </button>
+                {from && to && from > to && (
+                  <p role="alert">From date must be before the to date.</p>
+                )}
+                <p className="cards-note">
+                  Totals use the currency, date and statement filters above;
+                  currencies are never combined. Transaction search below does
+                  not change these totals.
+                </p>
+              </details>
+            </section>
+            <div className="spend-metrics" aria-label="Statement totals">
+              {[
+                ["Spending excluding fees / transfers", totals.purchases],
+                ["Fees, interest & posted tax", totals.charges],
+                ["Transfers & card payments", totals.transfers],
+                ["All credits / refunds", totals.credits],
+              ].map(([label, amount]) => (
+                <div key={label}>
+                  <span>{label}</span>
+                  <strong>{format(Number(amount))}</strong>
                 </div>
               ))}
-            </details>
-            <button
-              onClick={() => {
-                if (
-                  confirm(
-                    "Download a plaintext CSV? Anyone with this file can read its transaction details.",
+            </div>
+            <p className="spend-reconcile">
+              Total debits: <strong>{format(totals.outflows)}</strong> =
+              spending + charges + transfers. Fee reversals / credits:{" "}
+              <strong>{format(totals.chargeCredits)}</strong>. Credits can
+              include income or bill repayments; they are shown separately.
+            </p>
+            <div className="spend-charts">
+              <Bars
+                title="Where you spent"
+                items={totals.categories}
+                format={format}
+              />
+              <Bars
+                title="Fees & charges"
+                items={totals.chargesByType}
+                format={format}
+              />
+              <Bars
+                title="Monthly outflows · latest 12 months"
+                items={totals.months.slice(-12)}
+                format={format}
+              />
+              <Bars
+                title="Top payment descriptions"
+                items={totals.merchants.slice(0, 10)}
+                format={format}
+              />
+            </div>
+          </div>
+          <div hidden={view !== "transactions"} className="spend-view-panel">
+            <section className="cards-panel">
+              <h3>Transactions</h3>
+              <p className="cards-note">
+                {currency} · {from || "All dates"}
+                {to ? ` to ${to}` : ""} ·{" "}
+                {source
+                  ? doc.sources.find((s) => s.id === source)?.name
+                  : "All statements"}
+                .{" "}
+                <button
+                  className="spend-text-button"
+                  onClick={() => setView("analysis")}
+                >
+                  Change filters
+                </button>
+              </p>
+              <p className="cards-note">
+                Labels use simple rules, not AI. Edit incorrect categories and
+                charge types. Excluding a row removes it from totals but keeps
+                it in your history and backup.
+              </p>
+              {!!duplicateIds.size && (
+                <p className="cards-notice">
+                  {duplicateIds.size} possible repeated transactions. Flagged
+                  rows stay included until you review and exclude them;
+                  identical purchases can be genuine.
+                </p>
+              )}
+              <div className="spend-fields">
+                <Field label="Search transactions">
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(0);
+                    }}
+                    placeholder="Description, category or date"
+                  />
+                </Field>
+                <label className="spend-check">
+                  <input
+                    type="checkbox"
+                    checked={feesOnly}
+                    onChange={(e) => {
+                      setFeesOnly(e.target.checked);
+                      setPage(0);
+                    }}
+                  />
+                  Only fees & charges
+                </label>
+              </div>
+              {edit && (
+                <form
+                  className="spend-editor"
+                  ref={editorRef}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const amount = Number(editAmount);
+                    if (
+                      !Number.isFinite(amount) ||
+                      amount <= 0 ||
+                      amount > 1e10 ||
+                      Math.abs(amount * 100 - Math.round(amount * 100)) > 0.0001
+                    ) {
+                      setError(
+                        "Enter a positive amount with up to two decimal places.",
+                      );
+                      return;
+                    }
+                    update({
+                      ...edit,
+                      amountMinor: Math.round(amount * 100),
+                      reviewed: true,
+                    });
+                    setEdit(null);
+                    setError("");
+                  }}
+                >
+                  <h4>Edit transaction</h4>
+                  <div className="spend-fields">
+                    <Field label="Transaction date">
+                      <input
+                        required
+                        type="date"
+                        min="1970-01-01"
+                        max="2100-12-31"
+                        value={edit.date}
+                        onChange={(e) =>
+                          setEdit({ ...edit, date: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Transaction description">
+                      <input
+                        required
+                        maxLength={2000}
+                        value={edit.description}
+                        onChange={(e) =>
+                          setEdit({ ...edit, description: e.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Transaction amount">
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        required
+                        value={editAmount}
+                        onChange={(e) => setEditAmount(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Transaction direction">
+                      <select
+                        value={edit.direction}
+                        onChange={(e) =>
+                          setEdit({
+                            ...edit,
+                            direction: e.target.value as "debit" | "credit",
+                          })
+                        }
+                      >
+                        <option value="debit">Debit</option>
+                        <option value="credit">Credit</option>
+                      </select>
+                    </Field>
+                    <Field label="Transaction category">
+                      <select
+                        value={edit.category}
+                        onChange={(e) =>
+                          setEdit({
+                            ...edit,
+                            category: e.target.value as typeof edit.category,
+                          })
+                        }
+                      >
+                        {spendCategories.map((c) => (
+                          <option key={c}>{c}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Charge type">
+                      <select
+                        value={edit.chargeType}
+                        onChange={(e) =>
+                          setEdit({
+                            ...edit,
+                            chargeType: e.target
+                              .value as typeof edit.chargeType,
+                            ...(e.target.value !== "none"
+                              ? { category: "Fees & charges" as const }
+                              : {}),
+                          })
+                        }
+                      >
+                        {chargeTypes.map((c) => (
+                          <option key={c} value={c}>
+                            {c === "none" ? "Not a fee / charge" : c}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="spend-actions">
+                    <button type="submit">Save transaction</button>
+                    <button type="button" onClick={() => setEdit(null)}>
+                      Cancel edit
+                    </button>
+                  </div>
+                </form>
+              )}
+              <div className="spend-table-wrap">
+                <table className="spend-ledger">
+                  <caption>
+                    {visible.length} matching transactions · {totals.count}{" "}
+                    included in totals
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th>Date / status</th>
+                      <th>Description / category</th>
+                      <th>Amount</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible
+                      .slice(currentPage * 30, (currentPage + 1) * 30)
+                      .map((t) => (
+                        <tr
+                          key={t.id}
+                          className={t.excluded ? "spend-excluded" : ""}
+                        >
+                          <td>
+                            {t.date}
+                            <small>
+                              {t.excluded
+                                ? "Excluded"
+                                : t.reviewed
+                                  ? "Reviewed"
+                                  : "Needs review"}
+                              {duplicateIds.has(t.id)
+                                ? " · Possible duplicate"
+                                : ""}
+                            </small>
+                          </td>
+                          <td>
+                            {t.description}
+                            <small>
+                              {t.category}
+                              {t.chargeType !== "none"
+                                ? " · " + t.chargeType
+                                : ""}
+                            </small>
+                          </td>
+                          <td>
+                            {t.direction === "credit" ? "+ " : "− "}
+                            {format(t.amountMinor)}
+                            <small>{t.direction}</small>
+                          </td>
+                          <td>
+                            <div className="spend-row-actions">
+                              <button
+                                onClick={() => {
+                                  setEdit({ ...t });
+                                  setEditAmount(
+                                    (t.amountMinor / 100).toFixed(2),
+                                  );
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() =>
+                                  update({ ...t, excluded: !t.excluded })
+                                }
+                              >
+                                {t.excluded ? "Include" : "Exclude"}
+                              </button>
+                              <button
+                                aria-pressed={t.reviewed}
+                                onClick={() =>
+                                  update({ ...t, reviewed: !t.reviewed })
+                                }
+                              >
+                                {t.reviewed ? "Undo review" : "Reviewed"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="spend-actions">
+                <button
+                  disabled={currentPage === 0}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {currentPage + 1} of {pageCount}
+                </span>
+                <button
+                  disabled={currentPage + 1 >= pageCount}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Next
+                </button>
+              </div>
+              <details>
+                <summary>Manage imported statements</summary>
+                {doc.sources.map((s) => (
+                  <div className="spend-source" key={s.id}>
+                    <span>{s.name}</span>
+                    <button
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `Remove ${s.name} and its transactions from this session?`,
+                          )
+                        )
+                          return;
+                        setDoc((d) => ({
+                          ...d,
+                          sources: d.sources.filter((x) => x.id !== s.id),
+                          transactions: d.transactions.filter(
+                            (t) => t.sourceId !== s.id,
+                          ),
+                        }));
+                        if (source === s.id) setSource("");
+                        setEdit(null);
+                      }}
+                    >
+                      Remove statement
+                    </button>
+                  </div>
+                ))}
+              </details>
+              <button
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Download a plaintext CSV? Anyone with this file can read its transaction details.",
+                    )
                   )
-                )
-                  download(
-                    transactionsCSV(doc.transactions),
-                    "spend-transactions.csv",
-                    "text/csv;charset=utf-8",
-                  );
-              }}
-            >
-              Export all transactions (unencrypted CSV)
-            </button>
-          </section>
+                    download(
+                      transactionsCSV(doc.transactions),
+                      "spend-transactions.csv",
+                      "text/csv;charset=utf-8",
+                    );
+                }}
+              >
+                Export all transactions (unencrypted CSV)
+              </button>
+            </section>
+          </div>
         </>
       )}
-      <section className="cards-panel">
+      <section hidden={view !== "backup"} className="cards-panel">
         <h3>Keep a private backup</h3>
         <p className="cards-note">
           Optional password-encrypted file, saved to your device. Contains

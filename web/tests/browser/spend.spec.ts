@@ -12,7 +12,7 @@ const csv = `Date,Description,Debit,Credit,Balance
 async function open(page: import("@playwright/test").Page) {
   await page.goto("/dashboard?demo=1&tab=spend");
   await expect(
-    page.getByRole("heading", { name: "Know where your money goes." }),
+    page.getByRole("heading", { name: "Spend Analyzer", exact: true }),
   ).toBeVisible();
 }
 async function importCSV(page: import("@playwright/test").Page) {
@@ -47,6 +47,7 @@ test("local statement flow reconciles totals, supports review, and never uploads
   await expect(metrics).toContainText("₹2,000.00");
   await expect(metrics).toContainText("₹10,500.00");
   await expect(page.locator(".spend-reconcile")).toContainText("₹3,654.00");
+  await page.getByRole("button", { name: "Transactions", exact: true }).click();
   const row = page.getByRole("row").filter({ hasText: "SYNTHETIC AMAZON" });
   await row.getByRole("button", { name: "Exclude", exact: true }).click();
   await expect(metrics).toContainText("₹0.00");
@@ -65,6 +66,11 @@ test("local statement flow reconciles totals, supports review, and never uploads
     .getByRole("button", { name: "Spend Analyzer", exact: true })
     .click();
   await expect(metrics).toContainText("₹1,200.00");
+  await page.getByRole("button", { name: "Summary", exact: true }).click();
+  await expect(metrics).toBeVisible();
+  await expect(
+    page.getByLabel("Statement file", { exact: true }),
+  ).not.toBeVisible();
   expect(writes).toEqual([]);
   expect(
     await page.evaluate(() =>
@@ -90,6 +96,7 @@ test("encrypted backup restores edits locally and rejects an incorrect passphras
 }) => {
   await open(page);
   await importCSV(page);
+  await page.getByRole("button", { name: "Backup", exact: true }).click();
   await page
     .getByLabel("Backup passphrase", { exact: true })
     .fill("synthetic-passphrase");
@@ -106,6 +113,7 @@ test("encrypted backup restores edits locally and rejects an incorrect passphras
   await page
     .getByRole("button", { name: "Clear session", exact: true })
     .click();
+  await page.getByRole("button", { name: "Backup", exact: true }).click();
   await page
     .getByLabel("Encrypted backup file", { exact: true })
     .setInputFiles({

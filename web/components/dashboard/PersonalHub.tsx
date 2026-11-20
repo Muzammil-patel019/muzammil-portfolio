@@ -94,11 +94,13 @@ export function PersonalHub() {
   const params = useSearchParams(),
     demo = params.get("demo") === "1",
     initialTab =
-      params.get("tab") === "spend"
-        ? "spend"
-        : params.get("tab") === "renewals"
-          ? "renewals"
-          : "overview",
+      params.get("tab") === "tools"
+        ? "tools"
+        : params.get("tab") === "spend"
+          ? "spend"
+          : params.get("tab") === "renewals"
+            ? "renewals"
+            : "overview",
     selectedItem = params.get("item");
   const db = useMemo(() => browserClient(), []),
     generation = useRef(0),
@@ -106,7 +108,9 @@ export function PersonalHub() {
   const [auth, setAuth] = useState<"checking" | "signedout" | "signedin">(
       demo ? "signedin" : "checking",
     ),
-    [tab, setTab] = useState<"overview" | "renewals" | "spend">(initialTab);
+    [tab, setTab] = useState<"overview" | "renewals" | "spend" | "tools">(
+      initialTab,
+    );
   const [analyzerOpened, setAnalyzerOpened] = useState(initialTab === "spend");
   useEffect(() => {
     if (tab === "spend") setAnalyzerOpened(true);
@@ -387,52 +391,53 @@ export function PersonalHub() {
           )}
         </div>
       </header>
-      <nav className="cards-private-nav" aria-label="Private tools">
-        <a href={link("/dashboard")} aria-current="page">
-          Dashboard
-        </a>
-        <a href={link("/organizer")}>Organizer</a>
-        <a href={link("/cards")}>Cards</a>
-        <a href={link("/subscriptions")}>Shared Plan</a>
-        <a href="/learning">Learning</a>
-        <a href={link("/admin")}>Resume studio</a>
-      </nav>
       <div className="cards-title">
         <div>
-          <p className="cards-kicker">YOUR DAY, WITH LESS SCROLLING.</p>
+          <p className="cards-kicker">PERSONAL DASHBOARD</p>
           <h1>
             {tab === "spend"
-              ? "Your spending, in focus."
-              : "What needs your attention?"}
+              ? "Spend Analyzer"
+              : tab === "renewals"
+                ? "Renewals"
+                : tab === "tools"
+                  ? "Your tools"
+                  : "Your overview"}
           </h1>
           <p>
             {tab === "spend"
-              ? "Private statement analysis on your device."
-              : "One clear view of the things you’re keeping track of."}
+              ? "Understand your spending, fees and charges. Privately."
+              : tab === "renewals"
+                ? "Track what’s due and renew it in one place."
+                : tab === "tools"
+                  ? "Choose what you want to work on."
+                  : "Upcoming payments and the things that need you."}
           </p>
         </div>
-        <button
-          disabled={busy}
-          onClick={() =>
-            demo
-              ? setMessage(
-                  "This is a session-only demo. Refreshing the page clears its data.",
-                )
-              : void load()
-          }
-        >
-          Refresh overview
-        </button>
+        {(tab === "overview" || tab === "renewals") && (
+          <button
+            disabled={busy}
+            onClick={() =>
+              demo
+                ? setMessage(
+                    "This is a session-only demo. Refreshing the page clears its data.",
+                  )
+                : void load()
+            }
+          >
+            Refresh overview
+          </button>
+        )}
       </div>
       {demo && (
         <p className="cards-notice">
-          Demo mode. Only sample entries you add here are shown. Nothing is
-          saved online; refreshing clears this session.
+          Demo · Sample data only. Refreshing clears this session.
         </p>
       )}
-      <p className="cards-status" role="status">
-        {message}
-      </p>
+      {message && (
+        <p className="cards-status" role="status">
+          {message}
+        </p>
+      )}
       {unavailable.length > 0 && (
         <p className="cards-notice">
           Some sections are unavailable: {unavailable.join(", ")}. Their figures
@@ -469,6 +474,15 @@ export function PersonalHub() {
           }}
         >
           Spend Analyzer
+        </button>
+        <button
+          aria-pressed={tab === "tools"}
+          onClick={() => {
+            setTab("tools");
+            setForm(null);
+          }}
+        >
+          All tools
         </button>
       </nav>
       {analyzerOpened && (summary || demo) && (
@@ -536,56 +550,6 @@ export function PersonalHub() {
                   </strong>
                   <small>Includes overdue items</small>
                 </div>
-                <div>
-                  <span>Learning progress</span>
-                  <strong>
-                    {summary.sources.learning
-                      ? `${Math.round((summary.learning.completed / summary.learning.total) * 100)}%`
-                      : "—"}
-                  </strong>
-                  <small>
-                    {summary.learning.completed} of {summary.learning.total}{" "}
-                    recorded milestones
-                  </small>
-                </div>
-              </section>
-              <section
-                className="cards-metrics"
-                aria-label="Organizer overview"
-              >
-                <a href={link("/organizer?tab=expenses")}>
-                  <span>Spending this month</span>
-                  <strong>
-                    {summary.sources.organizer === false
-                      ? "—"
-                      : cardMoney(summary.organizer.spendingMinor)}
-                  </strong>
-                </a>
-                <a href={link("/organizer?tab=jobs")}>
-                  <span>Active applications</span>
-                  <strong>
-                    {summary.sources.organizer === false
-                      ? "—"
-                      : summary.organizer.activeApplications}
-                  </strong>
-                </a>
-                <a href={link("/organizer?tab=goals")}>
-                  <span>Recorded savings</span>
-                  <strong>
-                    {summary.sources.organizer === false
-                      ? "—"
-                      : cardMoney(summary.organizer.savedMinor)}
-                  </strong>
-                  <small>Across {summary.organizer.goals} active goals</small>
-                </a>
-                <a href={link("/organizer?tab=notes")}>
-                  <span>Notes & bookmarks</span>
-                  <strong>
-                    {summary.sources.organizer === false
-                      ? "—"
-                      : summary.organizer.notes}
-                  </strong>
-                </a>
               </section>
               <div className="hub-main-grid">
                 <section className="cards-panel hub-agenda">
@@ -670,53 +634,69 @@ export function PersonalHub() {
                   <section className="cards-panel">
                     <p className="cards-kicker">WAITING ON YOU</p>
                     <h2>Shared Plan inbox</h2>
-                    <a
-                      className="hub-inbox-row"
-                      href={link(
-                        summary.pending.paymentPlanId
-                          ? `/subscriptions?planId=${summary.pending.paymentPlanId}`
-                          : "/subscriptions",
-                      )}
-                    >
-                      <span>Payment reports</span>
-                      <strong>
-                        {summary.sources.payments
-                          ? summary.pending.payments
-                          : "—"}
-                      </strong>
-                    </a>
-                    <a
-                      className="hub-inbox-row"
-                      href={link(
-                        summary.pending.preferencePlanId
-                          ? `/subscriptions?planId=${summary.pending.preferencePlanId}`
-                          : "/subscriptions",
-                      )}
-                    >
-                      <span>Schedule requests</span>
-                      <strong>
-                        {summary.sources.preferences
-                          ? summary.pending.preferences
-                          : "—"}
-                      </strong>
-                    </a>
-                    <a
-                      className="hub-inbox-row"
-                      href={link(
-                        summary.pending.joinPlanId
-                          ? `/subscriptions?planId=${summary.pending.joinPlanId}`
-                          : "/subscriptions",
-                      )}
-                    >
-                      <span>Join requests</span>
-                      <strong>
-                        {summary.sources.joins ? summary.pending.joins : "—"}
-                      </strong>
-                    </a>
-                    <p className="cards-note">
-                      Review requests in Shared Plan. Reporting a payment still
-                      needs your confirmation.
-                    </p>
+                    {summary.sources.payments &&
+                    summary.sources.preferences &&
+                    summary.sources.joins &&
+                    !summary.pending.payments &&
+                    !summary.pending.preferences &&
+                    !summary.pending.joins ? (
+                      <p className="hub-caught-up">
+                        You’re all caught up. No requests to review.
+                      </p>
+                    ) : (
+                      <>
+                        {" "}
+                        <a
+                          className="hub-inbox-row"
+                          href={link(
+                            summary.pending.paymentPlanId
+                              ? `/subscriptions?planId=${summary.pending.paymentPlanId}`
+                              : "/subscriptions",
+                          )}
+                        >
+                          <span>Payment reports</span>
+                          <strong>
+                            {summary.sources.payments
+                              ? summary.pending.payments
+                              : "—"}
+                          </strong>
+                        </a>
+                        <a
+                          className="hub-inbox-row"
+                          href={link(
+                            summary.pending.preferencePlanId
+                              ? `/subscriptions?planId=${summary.pending.preferencePlanId}`
+                              : "/subscriptions",
+                          )}
+                        >
+                          <span>Schedule requests</span>
+                          <strong>
+                            {summary.sources.preferences
+                              ? summary.pending.preferences
+                              : "—"}
+                          </strong>
+                        </a>
+                        <a
+                          className="hub-inbox-row"
+                          href={link(
+                            summary.pending.joinPlanId
+                              ? `/subscriptions?planId=${summary.pending.joinPlanId}`
+                              : "/subscriptions",
+                          )}
+                        >
+                          <span>Join requests</span>
+                          <strong>
+                            {summary.sources.joins
+                              ? summary.pending.joins
+                              : "—"}
+                          </strong>
+                        </a>
+                        <p className="cards-note">
+                          Review requests in Shared Plan. Reporting a payment
+                          still needs your confirmation.
+                        </p>
+                      </>
+                    )}
                   </section>
                   <section className="cards-panel hub-learning">
                     <p className="cards-kicker">KEEP YOUR MOMENTUM</p>
@@ -742,79 +722,126 @@ export function PersonalHub() {
                   </section>
                 </aside>
               </div>
-              <section className="hub-launch-grid" aria-label="Your workspaces">
-                {[
-                  {
-                    name: "Expenses",
-                    href: "/organizer?tab=expenses",
-                    description: "Spending, category budgets and CSV exports.",
-                  },
-                  {
-                    name: "Applications",
-                    href: "/organizer?tab=jobs",
-                    description:
-                      "Interviews, follow-ups and the resume version you sent.",
-                  },
-                  {
-                    name: "Savings goals",
-                    href: "/organizer?tab=goals",
-                    description: "Targets and your deposit/withdrawal ledger.",
-                  },
-                  {
-                    name: "Reminder centre",
-                    href: "/organizer?tab=reminders",
-                    description:
-                      "Upcoming dates, snooze and calendar downloads.",
-                  },
-                  {
-                    name: "Notes & bookmarks",
-                    href: "/organizer?tab=notes",
-                    description: "Searchable private links, notes and tags.",
-                  },
-                  {
-                    name: "Cards",
-                    href: "/cards",
-                    description:
-                      "Statements, minimum dues and payment history.",
-                  },
-                  {
-                    name: "Shared Plan",
-                    href: "/subscriptions",
-                    description:
-                      "Members, collections and personal sharing links.",
-                  },
-                  {
-                    name: "Renewals",
-                    href: "/dashboard?tab=renewals",
-                    description:
-                      "Insurance, warranties and the dates that matter.",
-                  },
-                  {
-                    name: "Automation Lab",
-                    href: "/lab",
-                    description:
-                      "A sample store, real APIs and guided automation exercises.",
-                  },
-                  {
-                    name: "Resume studio",
-                    href: "/admin",
-                    description:
-                      "Your master resume, tailored versions and exports.",
-                  },
-                ].map((space) => (
-                  <a
-                    className="cards-panel"
-                    key={space.name}
-                    href={link(space.href)}
-                  >
-                    <h3>{space.name} ↗</h3>
-                    <p>{space.description}</p>
-                  </a>
-                ))}
-              </section>
             </>
           )}
         </>
+      )}
+      {tab === "tools" && (
+        <section className="hub-tools-view">
+          {summary && (
+            <>
+              <section
+                className="cards-metrics"
+                aria-label="Organizer overview"
+              >
+                <a href={link("/organizer?tab=expenses")}>
+                  <span>Spending this month</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : cardMoney(summary.organizer.spendingMinor)}
+                  </strong>
+                </a>
+                <a href={link("/organizer?tab=jobs")}>
+                  <span>Active applications</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : summary.organizer.activeApplications}
+                  </strong>
+                </a>
+                <a href={link("/organizer?tab=goals")}>
+                  <span>Recorded savings</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : cardMoney(summary.organizer.savedMinor)}
+                  </strong>
+                  <small>Across {summary.organizer.goals} active goals</small>
+                </a>
+                <a href={link("/organizer?tab=notes")}>
+                  <span>Notes & bookmarks</span>
+                  <strong>
+                    {summary.sources.organizer === false
+                      ? "—"
+                      : summary.organizer.notes}
+                  </strong>
+                </a>
+              </section>
+            </>
+          )}{" "}
+          <section className="hub-launch-grid" aria-label="Your workspaces">
+            {[
+              {
+                name: "Expenses",
+                href: "/organizer?tab=expenses",
+                description: "Spending, category budgets and CSV exports.",
+              },
+              {
+                name: "Applications",
+                href: "/organizer?tab=jobs",
+                description:
+                  "Interviews, follow-ups and the resume version you sent.",
+              },
+              {
+                name: "Savings goals",
+                href: "/organizer?tab=goals",
+                description: "Targets and your deposit/withdrawal ledger.",
+              },
+              {
+                name: "Reminder centre",
+                href: "/organizer?tab=reminders",
+                description: "Upcoming dates, snooze and calendar downloads.",
+              },
+              {
+                name: "Notes & bookmarks",
+                href: "/organizer?tab=notes",
+                description: "Searchable private links, notes and tags.",
+              },
+              {
+                name: "Cards",
+                href: "/cards",
+                description: "Statements, minimum dues and payment history.",
+              },
+              {
+                name: "Shared Plan",
+                href: "/subscriptions",
+                description: "Members, collections and personal sharing links.",
+              },
+              {
+                name: "Renewals",
+                href: "/dashboard?tab=renewals",
+                description: "Insurance, warranties and the dates that matter.",
+              },
+              {
+                name: "Learning",
+                href: "/learning",
+                description: "Lessons, practice and your progress.",
+              },
+              {
+                name: "Automation Lab",
+                href: "/lab",
+                description:
+                  "A sample store, real APIs and guided automation exercises.",
+              },
+              {
+                name: "Resume studio",
+                href: "/admin",
+                description:
+                  "Your master resume, tailored versions and exports.",
+              },
+            ].map((space) => (
+              <a
+                className="cards-panel"
+                key={space.name}
+                href={link(space.href)}
+              >
+                <h3>{space.name} ↗</h3>
+                <p>{space.description}</p>
+              </a>
+            ))}
+          </section>
+        </section>
       )}
       {tab === "renewals" && (
         <>
@@ -1263,10 +1290,6 @@ export function PersonalHub() {
         <p>
           Private personal hub · Dates in IST
           {updated ? " · Updated " + updated + " IST" : ""}
-        </p>
-        <p>
-          Cards and Shared Plan keep their own records. Dashboard summaries are
-          read-only; renewals are entered and confirmed by you.
         </p>
       </footer>
     </main>

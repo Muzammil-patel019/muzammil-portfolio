@@ -112,3 +112,55 @@ test("renewals roll forward with history, update the agenda and keep archived re
     page.getByRole("heading", { name: "Keep your next important date here." }),
   ).toBeVisible();
 });
+
+test("dashboard separates its overview, tools and statement tasks on a small screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/dashboard?demo=1");
+  await expect(
+    page.getByRole("heading", { name: "Your overview", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Organizer overview")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Shared Plan inbox" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("You’re all caught up. No requests to review."),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "/tmp/hub-clean-overview.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "All tools", exact: true }).click();
+  await expect(page.getByLabel("Organizer overview")).toBeVisible();
+  await expect(
+    page.getByLabel("Your workspaces").getByRole("link", { name: /Expenses/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Your workspaces").getByRole("link", { name: /Learning/ }),
+  ).toHaveAttribute("href", "/learning?demo=1");
+  await page
+    .getByRole("button", { name: "Spend Analyzer", exact: true })
+    .click();
+  await expect(page.getByLabel("Analyzer views")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Add a statement", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Keep a private backup", exact: true }),
+  ).not.toBeVisible();
+  await page.getByRole("button", { name: "Backup", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Keep a private backup", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Statement file", { exact: true }),
+  ).not.toBeVisible();
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await page.getByRole("button", { name: "Statements", exact: true }).click();
+  await page.screenshot({ path: "/tmp/hub-clean-spend.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await page.screenshot({ path: "/tmp/hub-clean-desktop.png", fullPage: true });
+});
