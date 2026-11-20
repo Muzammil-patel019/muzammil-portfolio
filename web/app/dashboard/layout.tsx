@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "../cards/cards.css";
 import "./dashboard.css";
+import "./spend.css";
 export const metadata: Metadata = {
   title: "Personal Hub · Private dashboard",
   description: "Private cards, shared plans, renewals and learning overview.",

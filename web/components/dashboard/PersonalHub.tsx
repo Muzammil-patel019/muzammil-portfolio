@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { ZodError } from "zod";
 import { browserClient } from "@/lib/supabase";
@@ -27,6 +28,10 @@ import {
   type RenewalDocument,
   type RenewalItem,
 } from "@/lib/renewals";
+const SpendAnalyzer = dynamic(
+  () => import("@/components/spend/SpendAnalyzer"),
+  { ssr: false, loading: () => <p>Opening local analyzer…</p> },
+);
 function Field({
   label,
   children,
@@ -88,7 +93,12 @@ function updateRenewals(
 export function PersonalHub() {
   const params = useSearchParams(),
     demo = params.get("demo") === "1",
-    initialTab = params.get("tab") === "renewals" ? "renewals" : "overview",
+    initialTab =
+      params.get("tab") === "spend"
+        ? "spend"
+        : params.get("tab") === "renewals"
+          ? "renewals"
+          : "overview",
     selectedItem = params.get("item");
   const db = useMemo(() => browserClient(), []),
     generation = useRef(0),
@@ -96,7 +106,11 @@ export function PersonalHub() {
   const [auth, setAuth] = useState<"checking" | "signedout" | "signedin">(
       demo ? "signedin" : "checking",
     ),
-    [tab, setTab] = useState<"overview" | "renewals">(initialTab);
+    [tab, setTab] = useState<"overview" | "renewals" | "spend">(initialTab);
+  const [analyzerOpened, setAnalyzerOpened] = useState(initialTab === "spend");
+  useEffect(() => {
+    if (tab === "spend") setAnalyzerOpened(true);
+  }, [tab]);
   const [summary, setSummary] = useState<DashboardSummary | null>(
       demo ? demoSummary : null,
     ),
@@ -386,8 +400,16 @@ export function PersonalHub() {
       <div className="cards-title">
         <div>
           <p className="cards-kicker">YOUR DAY, WITH LESS SCROLLING.</p>
-          <h1>What needs your attention?</h1>
-          <p>One clear view of the things you’re keeping track of.</p>
+          <h1>
+            {tab === "spend"
+              ? "Your spending, in focus."
+              : "What needs your attention?"}
+          </h1>
+          <p>
+            {tab === "spend"
+              ? "Private statement analysis on your device."
+              : "One clear view of the things you’re keeping track of."}
+          </p>
         </div>
         <button
           disabled={busy}
@@ -439,7 +461,29 @@ export function PersonalHub() {
         >
           Renewals
         </button>
+        <button
+          aria-pressed={tab === "spend"}
+          onClick={() => {
+            setTab("spend");
+            setForm(null);
+          }}
+        >
+          Spend Analyzer
+        </button>
       </nav>
+      {analyzerOpened && (summary || demo) && (
+        <div hidden={tab !== "spend"}>
+          <SpendAnalyzer
+            key={demo ? "demo" : `${userId.current}-${generation.current}`}
+          />
+        </div>
+      )}
+      {tab === "spend" && !summary && !demo && (
+        <p>
+          Your local analyzer opens after your private dashboard access is
+          verified.
+        </p>
+      )}
       {tab === "overview" && (
         <>
           {!summary ? (
