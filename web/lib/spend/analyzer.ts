@@ -39,6 +39,7 @@ export const transactionSchema = z
     chargeType: z.enum(chargeTypes),
     excluded: z.boolean(),
     reviewed: z.boolean(),
+    importNote: z.string().max(500).optional(),
   })
   .strict();
 export const spendDocumentSchema = z
@@ -321,7 +322,7 @@ export function suggestLabels(
   )
     chargeType = "Late / penalty fee";
   else if (
-    /finance.*charge|interest.*(?:charge|debit)|(?:debit|purchase|cash).*interest|^interest$/.test(
+    /finance.*charge|interest\s+on\s+emi|interest.*(?:charge|debit)|(?:debit|purchase|cash).*interest|^interest$/.test(
       s,
     )
   )
@@ -335,7 +336,7 @@ export function suggestLabels(
   else if (/cash.*(?:advance|withdrawal).*(?:fee|charge)/.test(s))
     chargeType = "Cash advance fee";
   else if (
-    /processing.*(?:fee|charge)|convenience.*fee|service.*charge|fuel.*surcharge|surcharge/.test(
+    /(?:proc|processing).*fee|processing.*charge|convenience.*fee|service.*charge|fuel.*surcharge|surcharge/.test(
       s,
     )
   )
@@ -344,7 +345,7 @@ export function suggestLabels(
   if (chargeType !== "none") return { category: "Fees & charges", chargeType };
   const checks: [RegExp, SpendTransaction["category"]][] = [
     [
-      /credit.?card.*(?:payment|bill)|payment.*(?:received|thank|card)|\b(?:neft|imps|rtgs)\b|self.?transfer/,
+      /transfer\s+to\s+(?:merchant\s+)?emi|credit.?card.*(?:payment|bill)|payment.*(?:received|thank|card)|\b(?:neft|imps|rtgs)\b|self.?transfer/,
       "Transfers & payments",
     ],
     [/\batm\b|cash withdrawal/, "Cash withdrawal"],
@@ -383,6 +384,9 @@ export function normalizeRows(
     throw Error("Choose a debit or credit column.");
   const transactions: SpendTransaction[] = [],
     issues: Issue[] = [];
+  const header = rows[mapping.headerRow].map((s) => s.trim().toLowerCase());
+  const noteIndex = header.indexOf("import note"),
+    excludedIndex = header.indexOf("exclude from totals");
   for (let i = mapping.headerRow + 1; i < rows.length; i++) {
     const row = rows[i],
       description = (row[mapping.description] || "").trim();
@@ -451,6 +455,15 @@ export function normalizeRows(
       if (!amountMinor)
         throw Error("Zero/empty amount; not included in totals.");
       const labels = suggestLabels(description, direction);
+      const specialEMI =
+        /^(?:M)$/i.test((row[mapping.direction] || "").trim()) ||
+        /transfer\s+to\s+(?:merchant\s+)?emi/i.test(description);
+      const importNote =
+        (noteIndex >= 0 ? (row[noteIndex] || "").slice(0, 500) : "") ||
+        (specialEMI
+          ? "EMI installment/conversion entry: excluded from spending until reviewed. Check its direction and use Include only if appropriate."
+          : "");
+
       transactions.push(
         transactionSchema.parse({
           id: sourceId + "-" + i,
@@ -461,8 +474,12 @@ export function normalizeRows(
           direction,
           currency: mapping.currency,
           ...labels,
-          excluded: false,
+          excluded:
+            specialEMI ||
+            (excludedIndex >= 0 &&
+              /^(?:true|yes|1)$/i.test(row[excludedIndex] || "")),
           reviewed: false,
+          ...(importNote ? { importNote } : {}),
         }),
       );
     } catch (e) {
@@ -544,6 +561,7 @@ export function transactionsCSV(rows: SpendTransaction[]) {
         "Charge type",
         "Excluded",
         "Reviewed",
+        "Import note",
       ],
       ...rows.map((t) => [
         t.date,
@@ -555,6 +573,7 @@ export function transactionsCSV(rows: SpendTransaction[]) {
         t.chargeType,
         String(t.excluded),
         String(t.reviewed),
+        t.importNote || "",
       ]),
     ]
       .map((r) => r.map(cell).join(","))

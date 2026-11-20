@@ -115,6 +115,7 @@ function readBlock(
     )
   )
     return null;
+  let marker: string | undefined;
   let amount = "",
     direction: "debit" | "credit" = "debit",
     description = "";
@@ -133,7 +134,7 @@ function readBlock(
     ];
     const edge = Math.min(...targets.map((t) => t.cell.x)) - 20;
     const candidates = amountCells(cells)
-      .filter((c) => c.x >= edge)
+      .filter((c) => center(c) >= edge)
       .map((c) => ({
         cell: c,
         nearest: anchors
@@ -156,19 +157,30 @@ function readBlock(
     if (nonzero.length !== 1) return null;
     const picked = nonzero[0],
       parsed = parseAmount(picked.cell.text)!;
-    const marker = cells
-      .find((c) => /^(?:CR|DR)$/i.test(c.text.trim()) && c.x >= edge)
-      ?.text.trim()
-      .toUpperCase();
+    const markers = [
+      ...new Set(
+        cells
+          .filter((c) => center(c) >= edge)
+          .map(
+            (c) =>
+              /^(CR|DR|C|D|M)\.?$/i.exec(c.text.trim())?.[1] ||
+              /\d[.,]\d{2}\s*(CR|DR|C|D|M)\.?$/i.exec(c.text.trim())?.[1],
+          )
+          .filter(Boolean)
+          .map((m) => m!.toUpperCase()),
+      ),
+    ];
+    if (markers.length > 1) return null;
+    marker = markers[0];
     direction =
       picked.nearest.kind === "credit"
         ? "credit"
         : picked.nearest.kind === "debit"
           ? "debit"
           : parsed.marker ||
-            (marker === "CR"
+            (marker === "CR" || marker === "C"
               ? "credit"
-              : marker === "DR"
+              : marker === "DR" || marker === "D"
                 ? "debit"
                 : parsed.negative
                   ? "credit"
@@ -183,56 +195,96 @@ function readBlock(
           (c) =>
             c.x >= descriptionStart - 15 &&
             c.x < descriptionEnd &&
-            !/^(?:CR|DR)$/i.test(c.text.trim()),
+            !/^(?:CR|DR|C|D|M)$/i.test(c.text.trim()),
         )
         .map((c) => c.text)
         .join(" "),
     );
     description = pdfDatePrefix(description)?.rest || description;
   } else {
-    const amounts = [
-      ...text.matchAll(
-        /(?:INR|Rs\.?|[₹$£€])?\s*[+\-]?\(?\d[\d,]*\.\d{2}\)?\s*(?:CR|DR)?/gi,
-      ),
-    ];
-    if (amounts.length !== 1) return null;
-    const token = amounts[0],
-      tail = text.slice((token.index || 0) + token[0].length).trim();
-    if (
-      tail &&
-      !(pointHint && /^\d+$/.test(tail)) &&
-      !/^(?:CR|DR)$/i.test(tail)
-    )
-      return null;
-    const parsed = parseAmount(
-      token[0] + (/^(?:CR|DR)$/i.test(tail) ? " " + tail : ""),
-    );
-    if (!parsed?.minor) return null;
-    amount = (parsed.minor / 100).toFixed(2);
-    direction = parsed.marker || (parsed.negative ? "credit" : "debit");
-    description = text.slice(0, token.index).trim();
+    const marked =
+      /^(.*?)\s+((?:INR|Rs\.?|[₹$£€])?\s*[+\-]?\(?\d[\d,]*\.\d{2}\)?)\s*(CR|DR|C|D|M)\.?$/i.exec(
+        text,
+      );
+    if (marked) {
+      // Reject unlabelled forex/balance pairs; SBI's explicitly labelled EXCL TAX
+      // figures belong to the narration, not the posted amount column.
+      const narrative = marked[1].replace(
+        /\(EXCL(?:UDING)?\s+TAX\s+[\d,.]+\)/gi,
+        "",
+      );
+      if (/\d[\d,]*\.\d{2}/.test(narrative)) return null;
+      const parsed = parseAmount(marked[2]);
+      if (!parsed?.minor) return null;
+      marker = marked[3].toUpperCase();
+      amount = (parsed.minor / 100).toFixed(2);
+      direction = marker === "C" || marker === "CR" ? "credit" : "debit";
+      description = marked[1];
+    } else {
+      const amounts = [
+        ...text.matchAll(
+          /(?:INR|Rs\.?|[₹$£€])?\s*[+\-]?\(?\d[\d,]*\.\d{2}\)?\s*(?:CR|DR)?/gi,
+        ),
+      ];
+      if (amounts.length !== 1) return null;
+      const token = amounts[0],
+        tail = text.slice((token.index || 0) + token[0].length).trim();
+      if (tail && !(pointHint && /^\d+$/.test(tail))) return null;
+      const parsed = parseAmount(token[0]);
+      if (!parsed?.minor) return null;
+      amount = (parsed.minor / 100).toFixed(2);
+      direction = parsed.marker || (parsed.negative ? "credit" : "debit");
+      description = text.slice(0, token.index).trim();
+    }
   }
   if (
     !description ||
     /^(?:opening|closing|total|minimum|payment due)\b/i.test(description)
   )
     return null;
-  return [
+  const row = [
     first.date,
     description,
     direction === "debit" ? amount : "",
     direction === "credit" ? amount : "",
   ];
+  if (marker === "M")
+    row.push(
+      "M-marked EMI entry: excluded from spending until reviewed. Include only if it belongs in this analysis.",
+      "true",
+    );
+  else if (
+    /transfer\s+to\s+(?:merchant\s+)?emi|transfer\s+to\s+flexipay/i.test(
+      description,
+    )
+  )
+    row.push(
+      "EMI conversion/transfer: excluded to avoid counting converted principal as a new purchase. Review before including.",
+      "true",
+    );
+  return row;
 }
 export function pdfTable(pages: PDFLine[][]) {
-  const rows: string[][] = [["Date", "Description", "Debit", "Credit"]],
+  const rows: string[][] = [
+      [
+        "Date",
+        "Description",
+        "Debit",
+        "Credit",
+        "Import note",
+        "Exclude from totals",
+      ],
+    ],
     warnings: string[] = [];
   let ambiguous = 0,
     datedRows = 0,
     carried: Layout | null = null;
+  let inheritedDates = 0,
+    reviewOnly = 0;
   for (const lines of pages) {
     let layout = carried,
       block: PDFLine[] = [];
+    let lastDate: string | null = null;
     const pointHint = lines.some((l) =>
       /amount.*(?:reward.?points|points|mcc)/i.test(lineText(l)),
     );
@@ -244,8 +296,10 @@ export function pdfTable(pages: PDFLine[][]) {
       } catch {
         /* Kept out of totals when a row is ambiguous. */
       }
-      if (parsed) rows.push(parsed);
-      else ambiguous++;
+      if (parsed) {
+        rows.push(parsed);
+        if (parsed[5] === "true") reviewOnly++;
+      } else ambiguous++;
       block = [];
     };
     for (let i = 0; i < lines.length; i++) {
@@ -259,7 +313,31 @@ export function pdfTable(pages: PDFLine[][]) {
       if (pdfDatePrefix(text)) {
         flush();
         block = [lines[i]];
+        lastDate = pdfDatePrefix(text)!.date;
         datedRows++;
+      } else if (
+        lastDate &&
+        layout?.amount &&
+        /^(?:IGST|CGST|SGST|GST)\b/i.test(text) &&
+        /\b(?:D|C|DR|CR)\.?$/i.test(text) &&
+        lines[i].cells.every((c) => c.x >= (layout!.description?.x || 0) - 15)
+      ) {
+        flush();
+        const synthetic = {
+          cells: [{ text: lastDate, x: 0, width: 0 }, ...lines[i].cells],
+        };
+        let parsed: string[] | null = null;
+        try {
+          parsed = readBlock([synthetic], layout, pointHint);
+        } catch {
+          /* skip ambiguous tax rows */
+        }
+        if (parsed) {
+          parsed[4] = `Date inferred from the preceding transaction (${lastDate}); confirm against your statement.`;
+          parsed[5] = "false";
+          rows.push(parsed);
+          inheritedDates++;
+        } else ambiguous++;
       } else if (
         block.length &&
         block.length < 4 &&
@@ -278,13 +356,30 @@ export function pdfTable(pages: PDFLine[][]) {
         if (complete) {
           flush();
         } else block.push(lines[i]);
-      } else flush();
+      } else {
+        flush();
+        if (
+          /^(?:total|summary|page\s+\d|transactions?\s+for|important|interest calculation|domestic|international)\b/i.test(
+            text,
+          ) ||
+          header
+        )
+          lastDate = null;
+      }
     }
     flush();
   }
   if (ambiguous)
     warnings.push(
       `${ambiguous} date-like PDF rows could not be matched to one reliable transaction amount and were not imported. Check the preview against your statement; a bank CSV/XLSX export may be more reliable.`,
+    );
+  if (inheritedDates)
+    warnings.push(
+      `${inheritedDates} undated tax row(s) use the preceding transaction date. Review the flagged dates before importing.`,
+    );
+  if (reviewOnly)
+    warnings.push(
+      `${reviewOnly} M-marked EMI or conversion row(s) are retained but excluded from spending by default. Review them in Transactions; use Include only when appropriate.`,
     );
   return {
     rows,
@@ -307,4 +402,58 @@ export function groupPDFLines(
     else groups.push({ y: item.y, cells: [cell] });
   }
   return groups.map((g) => ({ cells: g.cells.sort((a, b) => a.x - b.x) }));
+}
+
+/** Bank-independent recovery path: split readable PDF text by user-defined columns. */
+export function pdfGridRows(
+  pages: PDFLine[][],
+  widths: number[],
+  boundaries: number[],
+) {
+  if (
+    !boundaries.length ||
+    boundaries.length > 9 ||
+    boundaries.some(
+      (n, i) =>
+        !Number.isFinite(n) ||
+        n <= 0 ||
+        n >= 100 ||
+        (i > 0 && n <= boundaries[i - 1]),
+    )
+  )
+    throw Error(
+      "Column boundaries must increase from left to right, between 1 and 99 percent.",
+    );
+  const rows: string[][] = [
+    Array.from({ length: boundaries.length + 1 }, (_, i) => `Column ${i + 1}`),
+  ];
+  pages.forEach((lines, page) => {
+    const width = widths[page];
+    if (!width || width <= 0)
+      throw Error("PDF page dimensions are unavailable.");
+    for (const line of lines) {
+      const row = Array.from({ length: boundaries.length + 1 }, () => "");
+      for (const cell of line.cells) {
+        // Split a merged PDF text item into positioned words, rather than requiring
+        // one PDF text item per bank column. Exact amounts still require review.
+        const text = cell.text;
+        for (const token of text.matchAll(/\S+/g)) {
+          const x =
+            ((cell.x +
+              ((token.index || 0) / Math.max(1, text.length)) * cell.width) /
+              width) *
+            100;
+          const index = boundaries.findIndex((b) => x < b);
+          const column = index < 0 ? boundaries.length : index;
+          row[column] += (row[column] ? " " : "") + token[0];
+        }
+      }
+      if (row.some(Boolean)) rows.push(row);
+      if (rows.length > 25000)
+        throw Error(
+          "The layout editor supports up to 25,000 rows. Use a smaller statement.",
+        );
+    }
+  });
+  return rows;
 }

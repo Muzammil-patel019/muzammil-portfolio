@@ -300,3 +300,86 @@ test("headerless card rows preserve credit markers and don't guess between forex
   assert.equal(result.rows.length, 3);
   assert.equal(result.datedRows, 4);
 });
+
+test("SBI-style D/C/M rows retain tax notes and exclude EMI conversion principal from spending", async () => {
+  const { pdfTable } = await import("../lib/spend/pdf");
+  const cell = (text: string, x: number, width = 70) => ({ text, x, width });
+  const row = (date: string, desc: string, amount: string, marker = "") => ({
+    cells: [
+      ...(date ? [cell(date, 10)] : []),
+      cell(desc, 160, 320),
+      cell(amount, 620),
+      ...(marker ? [cell(marker, 720, 15)] : []),
+    ],
+  });
+  const result = pdfTable([
+    [
+      {
+        cells: [
+          cell("Date", 10),
+          cell("Transaction Details", 160, 150),
+          cell("Amount", 620),
+        ],
+      },
+      row("13 Oct 26", "MERCHANT EMI PROC FEE (EXCL TAX 9.00)", "45.00", "D"),
+      row("18 Oct 26", "FUEL SURCHARGE WAIVER EXCL TAX", "5.00", "C"),
+      row("01 Nov 26", "PAYMENT RECEIVED SYNTHETIC", "1,000.00", "C"),
+      row("12 Nov 26", "FP EMI 02/06(EXCL TAX 20.00)", "200.00", "M"),
+      row("12 Nov 26", "INTEREST ON EMI", "50.00", "D"),
+      row("", "IGST DB @ 18.00%", "9.00", "D"),
+      { cells: [cell("TRANSACTIONS FOR SYNTHETIC USER", 160, 350)] },
+      row("13 Oct 26", "TRANSFER TO MERCHANT EMI", "3,000.00"),
+      row("14 Oct 26", "SYNTHETIC SHOP", "100.00", "D"),
+    ],
+  ]);
+  assert.equal(result.rows.length, 9);
+  const transactions = normalizeRows(
+    result.rows,
+    detectMapping(result.rows),
+    "sbi-synthetic",
+  ).transactions;
+  assert.equal(transactions.length, 8);
+  const totals = summarizeTransactions(transactions);
+  assert.equal(totals.charges, 10400);
+  assert.equal(totals.purchases, 10000);
+  assert.equal(totals.credits, 100500);
+  assert.equal(totals.outflows, 20400);
+  assert.equal(transactions.filter((t) => t.excluded).length, 2);
+  const tax = transactions.find((t) => t.description.startsWith("IGST"))!;
+  assert.equal(tax.date, "2026-11-12");
+  assert.match(tax.importNote!, /inferred/);
+  assert.match(result.warnings.join(" "), /excluded/);
+  assert.equal(
+    transactions.find((t) => t.description === "INTEREST ON EMI")?.chargeType,
+    "Interest / finance charge",
+  );
+});
+test("generic PDF columns recover reordered layouts without a known bank header", async () => {
+  const { pdfGridRows } = await import("../lib/spend/pdf");
+  const pages = [
+    [
+      {
+        cells: [
+          { text: "CUSTOM SHOP", x: 10, width: 100 },
+          { text: "13 Oct 26", x: 300, width: 80 },
+          { text: "D", x: 500, width: 10 },
+          { text: "75.00", x: 650, width: 50 },
+        ],
+      },
+    ],
+  ];
+  const rows = pdfGridRows(pages, [800], [30, 60, 75]);
+  const m = detectMapping(rows);
+  Object.assign(m, {
+    date: 1,
+    description: 0,
+    direction: 2,
+    amount: 3,
+    mode: "single",
+  });
+  const parsed = normalizeRows(rows, m, "custom");
+  assert.equal(parsed.transactions[0].description, "CUSTOM SHOP");
+  assert.equal(parsed.transactions[0].amountMinor, 7500);
+  assert.throws(() => pdfGridRows(pages, [800], [75, 30]), /boundaries/);
+  assert.throws(() => pdfGridRows(pages, [800], [100]), /boundaries/);
+});

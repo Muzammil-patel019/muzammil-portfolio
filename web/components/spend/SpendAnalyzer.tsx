@@ -5,6 +5,7 @@ import {
   detectMapping,
   duplicateKey,
   normalizeRows,
+  parseDelimited,
   spendCategories,
   transactionsCSV,
   type Mapping,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/spend/analyzer";
 import { summarizeTransactions } from "@/lib/spend/analyzer";
 import { decryptSpend, encryptSpend } from "@/lib/spend/backup";
+import { pdfGridRows, pdfTable, type PDFLine } from "@/lib/spend/pdf";
 import { readStatementFile, type StatementSheet } from "@/lib/spend/files";
 const empty = (): SpendDocument => ({
   version: 1,
@@ -86,7 +88,11 @@ export default function SpendAnalyzer() {
     name: string;
     warnings: string[];
     id: string;
+    pdfPages?: PDFLine[][];
+    pdfWidths?: number[];
   } | null>(null);
+  const [boundaries, setBoundaries] = useState("18,78,94");
+  const [tableText, setTableText] = useState("");
   const [sheet, setSheet] = useState(0),
     [mapping, setMapping] = useState<Mapping | null>(null);
   const [busy, setBusy] = useState(false),
@@ -208,6 +214,7 @@ export default function SpendAnalyzer() {
     setBusy(true);
     setError("");
     setPending(null);
+    setTableText("");
     setMessage("Reading on this device…");
     try {
       const result = await readStatementFile(
@@ -250,6 +257,7 @@ export default function SpendAnalyzer() {
     setDoc(empty());
     setView("import");
     setPending(null);
+    setTableText("");
     setFile(null);
     setBackup(null);
     setPdfPassword("");
@@ -307,6 +315,7 @@ export default function SpendAnalyzer() {
       setFrom("");
       setTo("");
       setPending(null);
+      setTableText("");
       setEdit(null);
       setPassphrase("");
       setMessage(
@@ -316,6 +325,51 @@ export default function SpendAnalyzer() {
       if (epoch === sequence.current) fail(e);
     } finally {
       if (epoch === sequence.current) setBusy(false);
+    }
+  }
+  function applyPDFLayout() {
+    if (!pending?.pdfPages || !pending.pdfWidths) return;
+    try {
+      const rows = pdfGridRows(
+        pending.pdfPages,
+        pending.pdfWidths,
+        boundaries.split(",").map((n) => Number(n.trim())),
+      );
+      const m = detectMapping(rows);
+      setPending({
+        ...pending,
+        sheets: [{ name: "Custom PDF columns", rows }],
+      });
+      setSheet(0);
+      setMapping({
+        ...m,
+        date: 0,
+        description: Math.min(1, rows[0].length - 1),
+        amount: Math.max(0, rows[0].length - 2),
+        direction: rows[0].length - 1,
+        mode: "single",
+      });
+      setError("");
+      setMessage(
+        "Custom columns ready. Select the date, description and amount columns and check the preview.",
+      );
+    } catch (e) {
+      fail(e);
+    }
+  }
+  function applyTableText() {
+    if (!pending) return;
+    try {
+      const rows = parseDelimited(tableText);
+      if (rows.length < 2)
+        throw Error("Add a header row and at least one transaction row.");
+      setPending({ ...pending, sheets: [{ name: "Corrected table", rows }] });
+      setSheet(0);
+      setMapping(detectMapping(rows));
+      setError("");
+      setTableText("");
+    } catch (e) {
+      fail(e);
     }
   }
   const col = (
@@ -406,6 +460,7 @@ export default function SpendAnalyzer() {
                 onChange={(e) => {
                   setFile(e.target.files?.[0] || null);
                   setPending(null);
+                  setTableText("");
                   setPdfPassword("");
                   setError("");
                 }}
@@ -446,6 +501,92 @@ export default function SpendAnalyzer() {
                 {w}
               </p>
             ))}
+            {pending.pdfPages && (
+              <details className="spend-layout-editor">
+                <summary>Layout not right? Adjust PDF columns</summary>
+                <p className="cards-note">
+                  Works with readable PDFs from any bank. Column positions are
+                  percentages across the page: for example, 18,78,94 makes four
+                  columns. Adjust the boundaries, then map the date,
+                  description, amount and D/C columns below. Changing layout
+                  does not import anything.
+                </p>
+                <Field label="Column boundaries (%)">
+                  <input
+                    value={boundaries}
+                    onChange={(e) => setBoundaries(e.target.value)}
+                    placeholder="18,78,94"
+                  />
+                </Field>
+                <div className="spend-table-wrap">
+                  <table>
+                    <caption>Extracted columns · first 8 rows</caption>
+                    <tbody>
+                      {pending.sheets[sheet].rows.slice(0, 8).map((row, i) => (
+                        <tr key={i}>
+                          {row.map((v, j) => (
+                            <td key={j}>{v}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="spend-actions">
+                  <button onClick={applyPDFLayout}>Apply column layout</button>
+                  <button
+                    onClick={() => {
+                      const result = pdfTable(pending.pdfPages!);
+                      setPending({
+                        ...pending,
+                        sheets: [
+                          { name: "PDF transactions", rows: result.rows },
+                        ],
+                      });
+                      setSheet(0);
+                      setMapping(detectMapping(result.rows));
+                      setError("");
+                    }}
+                  >
+                    Use automatic detection
+                  </button>
+                </div>
+              </details>
+            )}
+            <details className="spend-layout-editor">
+              <summary>View or correct the extracted table</summary>
+              <p className="cards-note">
+                All corrections stay on this device. Check source rows here when
+                an amount, date or column is missing. You can also paste a CSV
+                copied from your bank export. Quoted values can contain commas.
+              </p>
+              <button
+                onClick={() =>
+                  setTableText(
+                    pending.sheets[sheet].rows
+                      .map((row) =>
+                        row
+                          .map((v) => '"' + v.replaceAll('"', '""') + '"')
+                          .join(","),
+                      )
+                      .join("\n"),
+                  )
+                }
+              >
+                Load extracted rows
+              </button>
+              <Field label="Editable statement table (CSV)">
+                <textarea
+                  rows={10}
+                  value={tableText}
+                  onChange={(e) => setTableText(e.target.value)}
+                  spellCheck={false}
+                />
+              </Field>
+              <button disabled={!tableText.trim()} onClick={applyTableText}>
+                Apply corrected table
+              </button>
+            </details>
             <div className="spend-fields">
               <Field label="Worksheet">
                 <select
@@ -611,7 +752,13 @@ export default function SpendAnalyzer() {
                   {preview.transactions.slice(0, 12).map((t) => (
                     <tr key={t.id}>
                       <td>{t.date}</td>
-                      <td>{t.description}</td>
+                      <td>
+                        {t.description}
+                        {t.importNote && <small>{t.importNote}</small>}
+                        {t.excluded && (
+                          <small>Excluded from totals until reviewed</small>
+                        )}
+                      </td>
                       <td>{t.direction}</td>
                       <td>
                         {t.currency} {(t.amountMinor / 100).toFixed(2)}
@@ -644,6 +791,7 @@ export default function SpendAnalyzer() {
                 setCurrency(mapping.currency);
                 setView("analysis");
                 setPending(null);
+                setTableText("");
                 setFile(null);
                 if (fileInput.current) fileInput.current.value = "";
                 setPage(0);
@@ -988,6 +1136,7 @@ export default function SpendAnalyzer() {
                           </td>
                           <td>
                             {t.description}
+                            {t.importNote && <small>{t.importNote}</small>}
                             <small>
                               {t.category}
                               {t.chargeType !== "none"
