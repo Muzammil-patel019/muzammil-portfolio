@@ -14,3 +14,6 @@ automation-lab-starter/.venv/
 
 automation-lab-framework/.venv/
 automation-lab-framework/artifacts/
+
+# Built browser PDF reader worker
+web/public/vendor/pdfjs/
