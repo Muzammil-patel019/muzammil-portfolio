@@ -289,13 +289,11 @@ test("ICICI-style card PDF handles split baselines, posting dates, reward points
   page.on("request", (r) => {
     if (r.method() === "POST") writes.push(r.url());
   });
-  await page
-    .getByLabel("Statement file", { exact: true })
-    .setInputFiles({
-      name: "synthetic-icici.pdf",
-      mimeType: "application/pdf",
-      buffer: pdfFixture(stream),
-    });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "synthetic-icici.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfFixture(stream),
+  });
   await page
     .getByRole("button", { name: "Read statement", exact: true })
     .click();
@@ -315,25 +313,152 @@ test("readable unsupported PDFs are distinguished from scans without importing g
   page,
 }) => {
   await open(page);
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "synthetic-unsupported.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfFixture(
+      "BT /F1 12 Tf 40 760 Td (Synthetic readable statement with an unsupported table layout) Tj ET",
+    ),
+  });
+  await page
+    .getByRole("button", { name: "Read statement", exact: true })
+    .click();
+  await expect(page.locator(".spend-import")).toContainText(
+    "Readable text was found",
+  );
+  await expect(page.locator(".spend-import")).toContainText(
+    "does not mean the PDF is scanned",
+  );
+  await expect(
+    page.getByRole("button", { name: "Confirm import", exact: true }),
+  ).toBeDisabled();
+});
+
+test("SBI statement imports D/C rows, flags EMI conversions and preserves an undated tax row", async ({
+  page,
+}) => {
+  await open(page);
+  const at = (x: number, y: number, text: string) =>
+    `BT /F1 9 Tf 1 0 0 1 ${x} ${y} Tm (${text.replaceAll("(", "\\(").replaceAll(")", "\\)")}) Tj ET`;
+  const lines = [
+    at(10, 760, "Date"),
+    at(160, 760, "Transaction Details"),
+    at(620, 760, "Amount"),
+  ];
+  const row = (
+    y: number,
+    date: string,
+    desc: string,
+    amount: string,
+    marker: string,
+  ) =>
+    lines.push(
+      ...(date ? [at(10, y, date)] : []),
+      at(160, y, desc),
+      at(620, y, amount),
+      ...(marker ? [at(720, y, marker)] : []),
+    );
+  row(730, "13 Oct 26", "MERCHANT EMI PROC FEE (EXCL TAX 9.00)", "45.00", "D");
+  row(710, "18 Oct 26", "FUEL SURCHARGE WAIVER EXCL TAX", "5.00", "C");
+  row(690, "01 Nov 26", "PAYMENT RECEIVED SYNTHETIC", "1,000.00", "C");
+  row(670, "12 Nov 26", "FP EMI 02/06(EXCL TAX 20.00)", "200.00", "M");
+  row(650, "12 Nov 26", "INTEREST ON EMI", "50.00", "D");
+  row(630, "", "IGST DB @ 18.00%", "9.00", "D");
+  lines.push(at(160, 610, "TRANSACTIONS FOR SYNTHETIC USER"));
+  row(590, "13 Oct 26", "TRANSFER TO MERCHANT EMI", "3,000.00", "");
+  row(570, "14 Oct 26", "SYNTHETIC SHOP", "100.00", "D");
   await page
     .getByLabel("Statement file", { exact: true })
     .setInputFiles({
-      name: "synthetic-unsupported.pdf",
+      name: "synthetic-sbi.pdf",
       mimeType: "application/pdf",
-      buffer: pdfFixture(
-        "BT /F1 12 Tf 40 760 Td (Synthetic readable statement with an unsupported table layout) Tj ET",
-      ),
+      buffer: pdfFixture(lines.join("\n")),
     });
   await page
     .getByRole("button", { name: "Read statement", exact: true })
     .click();
   await expect(
-    page.locator(".spend-analyzer").getByRole("alert"),
-  ).toContainText("Readable text was found");
+    page.getByText("8 transactions ready", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".spend-import")).toContainText("undated tax");
+  await page
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(page.getByLabel("Statement totals")).toContainText("₹104.00");
+  await expect(page.getByLabel("Statement totals")).toContainText("₹100.00");
+  await expect(page.getByLabel("Statement totals")).toContainText("₹1,005.00");
+  await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(
-    page.locator(".spend-analyzer").getByRole("alert"),
-  ).toContainText("does not mean the PDF is scanned");
+    page.getByRole("row").filter({ hasText: "FP EMI" }),
+  ).toContainText("Excluded");
   await expect(
-    page.getByRole("button", { name: "Confirm import", exact: true }),
-  ).toHaveCount(0);
+    page.getByRole("row").filter({ hasText: "IGST DB" }),
+  ).toContainText("Date inferred");
+});
+test("unknown PDF layouts can be mapped and corrected locally without bank-specific code", async ({
+  page,
+}) => {
+  await open(page);
+  const stream =
+    "BT /F1 9 Tf 1 0 0 1 10 720 Tm (CUSTOM SHOP) Tj ET BT /F1 9 Tf 1 0 0 1 300 720 Tm (13 Oct 26) Tj ET BT /F1 9 Tf 1 0 0 1 500 720 Tm (D) Tj ET BT /F1 9 Tf 1 0 0 1 650 720 Tm (75.00) Tj ET";
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST") writes.push(r.url());
+  });
+  await page
+    .getByLabel("Statement file", { exact: true })
+    .setInputFiles({
+      name: "unknown-layout.pdf",
+      mimeType: "application/pdf",
+      buffer: pdfFixture(stream),
+    });
+  await page
+    .getByRole("button", { name: "Read statement", exact: true })
+    .click();
+  await expect(page.locator(".spend-import")).toContainText(
+    "Readable text was found",
+  );
+  await page
+    .getByText("Layout not right? Adjust PDF columns", { exact: true })
+    .click();
+  await page
+    .getByLabel("Column boundaries (%)", { exact: true })
+    .fill("30,60,75");
+  await page
+    .getByRole("button", { name: "Apply column layout", exact: true })
+    .click();
+  await page
+    .getByRole("combobox", { name: "Date column", exact: true })
+    .selectOption("1");
+  await page
+    .getByRole("combobox", { name: "Description column", exact: true })
+    .selectOption("0");
+  await page
+    .getByRole("combobox", { name: "Amount column", exact: true })
+    .selectOption("3");
+  await page
+    .getByRole("combobox", {
+      name: "Debit / credit indicator column",
+      exact: true,
+    })
+    .selectOption("2");
+  await expect(
+    page.getByText("1 transactions ready", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByText("View or correct the extracted table", { exact: true })
+    .click();
+  await page
+    .getByLabel("Editable statement table (CSV)", { exact: true })
+    .fill(
+      "Date,Description,Amount,Type\n13 Oct 26,CUSTOM SHOP CORRECTED,80.00,D",
+    );
+  await page
+    .getByRole("button", { name: "Apply corrected table", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(page.getByLabel("Statement totals")).toContainText("₹80.00");
+  expect(writes).toEqual([]);
 });

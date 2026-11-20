@@ -7,7 +7,12 @@ export async function readStatementFile(
   password: string,
   progress: (message: string) => void,
   signal: AbortSignal,
-): Promise<{ sheets: StatementSheet[]; warnings: string[] }> {
+): Promise<{
+  sheets: StatementSheet[];
+  warnings: string[];
+  pdfPages?: PDFLine[][];
+  pdfWidths?: number[];
+}> {
   if (file.size > 20000000) throw Error("Limit each file to 20 MB.");
   const extension = file.name.toLowerCase().split(".").at(-1);
   if (extension === "csv" || extension === "txt") {
@@ -69,6 +74,7 @@ export async function readStatementFile(
         "This PDF exceeds 150 pages. Export smaller statements or CSV.",
       );
     const pages: PDFLine[][] = [];
+    const widths: number[] = [];
     for (let i = 1; i <= document.numPages; i++) {
       if (signal.aborted) throw Error("Cancelled");
       progress(`Reading PDF page ${i} of ${document.numPages} on this device…`);
@@ -85,6 +91,7 @@ export async function readStatementFile(
         });
       }
       pages.push(groupPDFLines(items));
+      widths.push(page.getViewport({ scale: 1 }).width);
       page.cleanup();
     }
     const result = pdfTable(pages);
@@ -93,11 +100,13 @@ export async function readStatementFile(
         throw Error(
           "No readable text was found in this PDF. It may be a scanned statement. Local OCR is not available yet; use the bank CSV/XLSX export.",
         );
-      throw Error(
-        `Readable text was found on ${document.numPages} page(s), but the transaction layout could not be recognised (${result.datedRows} date-like rows). This does not mean the PDF is scanned. No transactions were imported. Try a bank CSV/XLSX export; your file and password stayed on this device.`,
+      result.warnings.push(
+        `Readable text was found on ${document.numPages} page(s), but the transaction layout could not be recognised (${result.datedRows} date-like rows). This does not mean the PDF is scanned. No transactions were imported automatically. Use the layout editor below to arrange the columns, or import a bank CSV/XLSX export. Your file and password stayed on this device.`,
       );
     }
     return {
+      pdfPages: pages,
+      pdfWidths: widths,
       sheets: [{ name: "PDF transactions", rows: result.rows }],
       warnings: [
         "PDF layouts vary. Review the detected amounts, debit/credit direction and missing rows before importing.",
