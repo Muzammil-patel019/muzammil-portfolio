@@ -367,13 +367,11 @@ test("SBI statement imports D/C rows, flags EMI conversions and preserves an und
   lines.push(at(160, 610, "TRANSACTIONS FOR SYNTHETIC USER"));
   row(590, "13 Oct 26", "TRANSFER TO MERCHANT EMI", "3,000.00", "");
   row(570, "14 Oct 26", "SYNTHETIC SHOP", "100.00", "D");
-  await page
-    .getByLabel("Statement file", { exact: true })
-    .setInputFiles({
-      name: "synthetic-sbi.pdf",
-      mimeType: "application/pdf",
-      buffer: pdfFixture(lines.join("\n")),
-    });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "synthetic-sbi.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfFixture(lines.join("\n")),
+  });
   await page
     .getByRole("button", { name: "Read statement", exact: true })
     .click();
@@ -405,13 +403,11 @@ test("unknown PDF layouts can be mapped and corrected locally without bank-speci
   page.on("request", (r) => {
     if (r.method() === "POST") writes.push(r.url());
   });
-  await page
-    .getByLabel("Statement file", { exact: true })
-    .setInputFiles({
-      name: "unknown-layout.pdf",
-      mimeType: "application/pdf",
-      buffer: pdfFixture(stream),
-    });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "unknown-layout.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfFixture(stream),
+  });
   await page
     .getByRole("button", { name: "Read statement", exact: true })
     .click();
@@ -461,4 +457,166 @@ test("unknown PDF layouts can be mapped and corrected locally without bank-speci
     .click();
   await expect(page.getByLabel("Statement totals")).toContainText("₹80.00");
   expect(writes).toEqual([]);
+});
+
+test("visual PDF reader shows the original page and extracts a selected table without uploads", async ({
+  page,
+}) => {
+  await open(page);
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST") writes.push(r.url());
+  });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "visual.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfFixture(),
+  });
+  await page
+    .getByRole("button", { name: "Open visual reader / scans", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Read selected table text", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByLabel("Original statement page", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Read selected table text", exact: true })
+    .click();
+  await expect(
+    page.getByText("2 transactions ready", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".spend-import")).toContainText(
+    "Selected table from page 1",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await page.screenshot({
+    path: "/tmp/visual-reader-mobile.png",
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(page.getByLabel("Statement totals")).toContainText("₹100.00");
+  await expect(
+    page.getByLabel("Visual statement reader", { exact: true }),
+  ).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
+test("image-only PDF can be read by the real same-origin local OCR engine", async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  const { scannedStatement } = await import("./scanned-statement-fixture");
+  await open(page);
+  const requests: { url: string; method: string }[] = [];
+  page
+    .context()
+    .on("request", (r) => requests.push({ url: r.url(), method: r.method() }));
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "synthetic-scan.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(scannedStatement, "base64"),
+  });
+  await page
+    .getByRole("button", { name: "Open visual reader / scans", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Read selected table with OCR",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Read selected table with OCR", exact: true })
+    .click();
+  await expect(
+    page.getByText("3 transactions ready", { exact: true }),
+  ).toBeVisible({ timeout: 90000 });
+  await expect(page.locator(".spend-import")).toContainText("OCR from page 1");
+  await expect(
+    page.getByRole("button", { name: "Confirm import", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByLabel(
+      "I compared OCR amounts, dates and debit/credit markers with the original page",
+      { exact: true },
+    )
+    .check();
+  await page
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  const metrics = page.getByLabel("Statement totals");
+  await expect(metrics).toContainText("₹100.00");
+  await expect(metrics).toContainText("₹20.00");
+  await expect(metrics).toContainText("₹0.00");
+  await page.getByRole("button", { name: "Transactions", exact: true }).click();
+  const refund = page.getByRole("row").filter({ hasText: "REFUND" });
+  await expect(refund).toContainText("Excluded");
+  await expect(refund).toContainText(
+    "OCR did not read an explicit debit/credit direction",
+  );
+  await refund.getByRole("button", { name: "Edit", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Transaction direction", exact: true })
+    .selectOption("credit");
+  await page
+    .getByRole("button", { name: "Save transaction", exact: true })
+    .click();
+  await refund.getByRole("button", { name: "Include", exact: true }).click();
+  await page.getByRole("button", { name: "Summary", exact: true }).click();
+  await expect(metrics).toContainText("₹25.00");
+  expect(requests.filter((r) => r.method === "POST")).toEqual([]);
+  const origin = new URL(page.url()).origin;
+  expect(
+    requests.filter(
+      (r) => r.url.startsWith("http") && new URL(r.url).origin !== origin,
+    ),
+  ).toEqual([]);
+  expect(
+    requests.some((r) => r.url.includes("/vendor/ocr/worker.min.js")),
+  ).toBe(true);
+});
+
+test("visual reader cancellation does not import delayed OCR results", async ({
+  page,
+}) => {
+  const { scannedStatement } = await import("./scanned-statement-fixture");
+  await open(page);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page
+    .getByLabel("Statement file", { exact: true })
+    .setInputFiles({
+      name: "cancel-scan.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from(scannedStatement, "base64"),
+    });
+  await page
+    .getByRole("button", { name: "Open visual reader / scans", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Read selected table with OCR",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Read selected table with OCR", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Cancel reading", exact: true })
+    .click();
+  await expect(
+    page.getByText("Cancelled. No rows were imported.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Close visual reader", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Confirm import", exact: true }),
+  ).toHaveCount(0);
+  expect(errors).toEqual([]);
 });

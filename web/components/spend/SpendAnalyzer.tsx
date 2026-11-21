@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   chargeTypes,
   detectMapping,
@@ -16,6 +17,10 @@ import { summarizeTransactions } from "@/lib/spend/analyzer";
 import { decryptSpend, encryptSpend } from "@/lib/spend/backup";
 import { pdfGridRows, pdfTable, type PDFLine } from "@/lib/spend/pdf";
 import { readStatementFile, type StatementSheet } from "@/lib/spend/files";
+const VisualStatementReader = dynamic(() => import("./VisualStatementReader"), {
+  ssr: false,
+  loading: () => <p>Opening visual reader…</p>,
+});
 const empty = (): SpendDocument => ({
   version: 1,
   sources: [],
@@ -90,11 +95,19 @@ export default function SpendAnalyzer() {
     id: string;
     pdfPages?: PDFLine[][];
     pdfWidths?: number[];
+    ocrReview?: boolean;
+  } | null>(null);
+  const [visualSource, setVisualSource] = useState<{
+    file: File;
+    password: string;
   } | null>(null);
   const [boundaries, setBoundaries] = useState("18,78,94");
   const [tableText, setTableText] = useState("");
+  const [ocrReviewed, setOCRReviewed] = useState(false);
+
   const [sheet, setSheet] = useState(0),
     [mapping, setMapping] = useState<Mapping | null>(null);
+  useEffect(() => setOCRReviewed(false), [mapping, pending?.id]);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
@@ -207,6 +220,7 @@ export default function SpendAnalyzer() {
   };
   async function read() {
     if (!file) return;
+    setVisualSource(null);
     const epoch = ++sequence.current;
     controller.current?.abort();
     const abort = new AbortController();
@@ -255,6 +269,7 @@ export default function SpendAnalyzer() {
     controller.current?.abort();
     setBusy(false);
     setDoc(empty());
+    setVisualSource(null);
     setView("import");
     setPending(null);
     setTableText("");
@@ -309,6 +324,7 @@ export default function SpendAnalyzer() {
       const restored = await decryptSpend(await backup.text(), passphrase);
       if (epoch !== sequence.current) return;
       setDoc(restored);
+      setVisualSource(null);
       setView("analysis");
       setCurrency(restored.transactions[0]?.currency || "INR");
       setSource("");
@@ -446,9 +462,10 @@ export default function SpendAnalyzer() {
         <section className="cards-panel">
           <h3>Add a statement</h3>
           <p className="cards-note">
-            CSV, XLSX or text-based PDF · up to 20 MB. Scanned PDFs need a bank
-            CSV/XLSX export. PDF layouts vary; always compare the preview and
-            imported totals with your statement.
+            CSV, XLSX or PDF · up to 20 MB. For difficult layouts or scans, open
+            the visual reader. Readable text is fastest; local OCR can help with
+            images. Always compare the preview and imported totals with your
+            statement.
           </p>
           <div className="spend-fields">
             <Field label="Statement file">
@@ -459,6 +476,7 @@ export default function SpendAnalyzer() {
                 disabled={busy}
                 onChange={(e) => {
                   setFile(e.target.files?.[0] || null);
+                  setVisualSource(null);
                   setPending(null);
                   setTableText("");
                   setPdfPassword("");
@@ -479,6 +497,17 @@ export default function SpendAnalyzer() {
             <button disabled={!file || busy} onClick={read}>
               {busy ? "Working locally…" : "Read statement"}
             </button>
+            {file?.name.toLowerCase().endsWith(".pdf") && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  setVisualSource({ file, password: pdfPassword });
+                  setError("");
+                }}
+              >
+                Open visual reader / scans
+              </button>
+            )}
             {busy && (
               <button
                 onClick={() => {
@@ -493,6 +522,51 @@ export default function SpendAnalyzer() {
             )}
           </div>
         </section>
+        {visualSource && (
+          <VisualStatementReader
+            file={visualSource.file}
+            password={visualSource.password}
+            onClose={() => setVisualSource(null)}
+            onExtract={(result) => {
+              sequence.current++;
+              controller.current?.abort();
+              setBusy(false);
+              const m = detectMapping(result.rows);
+              const columnCount = result.rows[0].filter(
+                (h) => h !== "Import note",
+              ).length;
+              setOCRReviewed(false);
+              setPending({
+                sheets: [{ name: "Selected PDF table", rows: result.rows }],
+                name: visualSource.file.name.slice(0, 200),
+                id: crypto.randomUUID(),
+                warnings: result.warnings,
+                ocrReview: result.warnings.some((w) =>
+                  w.startsWith("OCR from page"),
+                ),
+              });
+              setSheet(0);
+              setMapping(
+                result.manual
+                  ? {
+                      ...m,
+                      date: 0,
+                      description: Math.min(1, columnCount - 1),
+                      amount: Math.max(0, columnCount - 2),
+                      direction: columnCount - 1,
+                      mode: "single",
+                    }
+                  : m,
+              );
+              setPdfPassword("");
+              setTableText("");
+              setError("");
+              setMessage(
+                "Selected table is ready for review below. Nothing has been imported yet.",
+              );
+            }}
+          />
+        )}
         {pending && mapping && preview && (
           <section className="cards-panel spend-import">
             <h3>Check your import</h3>
@@ -768,8 +842,24 @@ export default function SpendAnalyzer() {
                 </tbody>
               </table>
             </div>
+            {pending.ocrReview && (
+              <label className="spend-check">
+                <input
+                  type="checkbox"
+                  checked={ocrReviewed}
+                  onChange={(e) => setOCRReviewed(e.target.checked)}
+                />
+                I compared OCR amounts, dates and debit/credit markers with the
+                original page
+              </label>
+            )}
             <button
-              disabled={!preview.transactions.length || !!preview.error || busy}
+              disabled={
+                !preview.transactions.length ||
+                !!preview.error ||
+                busy ||
+                (!!pending.ocrReview && !ocrReviewed)
+              }
               onClick={() => {
                 if (
                   doc.sources.length >= 50 ||
@@ -791,6 +881,7 @@ export default function SpendAnalyzer() {
                 setCurrency(mapping.currency);
                 setView("analysis");
                 setPending(null);
+                setVisualSource(null);
                 setTableText("");
                 setFile(null);
                 if (fileInput.current) fileInput.current.value = "";

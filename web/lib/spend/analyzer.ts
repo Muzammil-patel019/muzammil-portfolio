@@ -438,6 +438,16 @@ export function normalizeRows(
         if (!amount?.minor) throw Error("No non-zero transaction amount.");
         amountMinor = amount.minor;
         const type = (row[mapping.direction] || "").trim();
+        if (
+          type &&
+          !amount.marker &&
+          !/^(?:cr|c|credit|deposit|refund|dr|d|debit|withdrawal|m)$/i.test(
+            type,
+          )
+        )
+          throw Error(
+            "Unrecognised debit/credit indicator. Correct this row or choose the proper direction column before importing.",
+          );
         direction =
           amount.marker ||
           (/^(?:cr|c|credit|deposit|refund)$/i.test(type)
@@ -458,12 +468,22 @@ export function normalizeRows(
       const specialEMI =
         /^(?:M)$/i.test((row[mapping.direction] || "").trim()) ||
         /transfer\s+to\s+(?:merchant\s+)?emi/i.test(description);
-      const importNote =
+      let importNote =
         (noteIndex >= 0 ? (row[noteIndex] || "").slice(0, 500) : "") ||
         (specialEMI
           ? "EMI installment/conversion entry: excluded from spending until reviewed. Check its direction and use Include only if appropriate."
           : "");
 
+      const missingOCRDirection =
+        importNote.includes("OCR") &&
+        mapping.mode === "single" &&
+        mapping.direction >= 0 &&
+        !(row[mapping.direction] || "").trim();
+      if (missingOCRDirection)
+        importNote = (
+          "OCR direction is blank: excluded until checked and corrected. " +
+          importNote
+        ).slice(0, 500);
       transactions.push(
         transactionSchema.parse({
           id: sourceId + "-" + i,
@@ -475,6 +495,7 @@ export function normalizeRows(
           currency: mapping.currency,
           ...labels,
           excluded:
+            missingOCRDirection ||
             specialEMI ||
             (excludedIndex >= 0 &&
               /^(?:true|yes|1)$/i.test(row[excludedIndex] || "")),

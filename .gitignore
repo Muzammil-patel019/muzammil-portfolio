@@ -17,3 +17,4 @@ automation-lab-framework/artifacts/
 
 # Built browser PDF reader worker
 web/public/vendor/pdfjs/
+web/public/vendor/ocr/
