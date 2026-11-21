@@ -22,7 +22,6 @@ export default function ImportReview({
     [search, setSearch] = useState(""),
     [page, setPage] = useState(0);
   const [edit, setEdit] = useState<SpendTransaction | null>(null),
-    [amount, setAmount] = useState(""),
     [error, setError] = useState("");
   const [expectedDebit, setExpectedDebit] = useState(""),
     [expectedCredit, setExpectedCredit] = useState("");
@@ -30,6 +29,7 @@ export default function ImportReview({
   useEffect(() => {
     if (!edit) return;
     const frame = requestAnimationFrame(() => {
+      if (form.current?.contains(document.activeElement)) return;
       form.current?.scrollIntoView({ block: "center", behavior: "instant" });
       form.current
         ?.querySelector<HTMLInputElement>("input")
@@ -139,24 +139,30 @@ export default function ImportReview({
       {edit && (
         <form
           className="spend-editor"
+          key={edit.id}
           ref={form}
           onSubmit={(e) => {
             e.preventDefault();
             try {
-              const parsed = parseAmount(amount);
+              const values = new FormData(e.currentTarget);
+              const date = String(values.get("date") || ""),
+                description = String(values.get("description") || "").trim();
+              const direction = String(values.get("direction")) as
+                "debit" | "credit";
+              const parsed = parseAmount(String(values.get("amount") || ""));
               if (!parsed || !parsed.minor || parsed.negative)
                 throw Error("Enter a positive amount.");
-              if (parseStatementDate(edit.date, "DMY", 2000) !== edit.date)
+              if (parseStatementDate(date, "DMY", 2000) !== date)
                 throw Error("Enter a valid transaction date.");
               onUpdate(
                 transactionSchema.parse({
                   ...edit,
-                  ...suggestLabels(
-                    edit.description,
-                    parsed.marker || edit.direction,
-                  ),
+                  ...suggestLabels(description, parsed.marker || direction),
+                  date,
+                  description,
+                  excluded: !values.has("included"),
                   amountMinor: parsed.minor,
-                  direction: parsed.marker || edit.direction,
+                  direction: parsed.marker || direction,
                   reviewed: true,
                 }),
               );
@@ -173,6 +179,7 @@ export default function ImportReview({
               <span>Preview transaction date</span>
               <input
                 type="date"
+                name="date"
                 required
                 value={edit.date}
                 onChange={(e) => setEdit({ ...edit, date: e.target.value })}
@@ -183,6 +190,7 @@ export default function ImportReview({
               <input
                 required
                 maxLength={2000}
+                name="description"
                 value={edit.description}
                 onChange={(e) =>
                   setEdit({ ...edit, description: e.target.value })
@@ -195,13 +203,14 @@ export default function ImportReview({
                 type="text"
                 inputMode="decimal"
                 required
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                name="amount"
+                defaultValue={(edit.amountMinor / 100).toFixed(2)}
               />
             </label>
             <label className="cards-field">
               <span>Preview direction</span>
               <select
+                name="direction"
                 value={edit.direction}
                 onChange={(e) =>
                   setEdit({
@@ -218,6 +227,7 @@ export default function ImportReview({
           <label className="spend-check">
             <input
               type="checkbox"
+              name="included"
               checked={!edit.excluded}
               onChange={(e) =>
                 setEdit({ ...edit, excluded: !e.target.checked })
@@ -278,7 +288,6 @@ export default function ImportReview({
                   <button
                     onClick={() => {
                       setEdit({ ...t });
-                      setAmount((t.amountMinor / 100).toFixed(2));
                       setError("");
                     }}
                   >

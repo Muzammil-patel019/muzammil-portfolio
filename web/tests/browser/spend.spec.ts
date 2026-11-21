@@ -640,6 +640,9 @@ test("transactions can be corrected, filtered and reconciled before importing", 
   const row = review.getByRole("row").filter({ hasText: "SYNTHETIC AMAZON" });
   await row.getByRole("button", { name: "Correct row", exact: true }).click();
   await page.getByLabel("Preview amount", { exact: true }).fill("1250");
+  await expect(page.getByLabel("Preview amount", { exact: true })).toHaveValue(
+    "1250",
+  );
   await page
     .getByRole("button", { name: "Save preview correction", exact: true })
     .click();
