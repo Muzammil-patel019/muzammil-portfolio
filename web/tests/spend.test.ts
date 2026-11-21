@@ -477,3 +477,33 @@ test("OCR rows without an explicit direction are excluded rather than silently c
     /Unrecognised/,
   );
 });
+
+test("saved visual layouts contain only crop and guide settings and reject extra private fields", async () => {
+  const { parseLayoutPreset, fullPage } = await import("../lib/spend/visual");
+  const preset = {
+    version: 1,
+    region: fullPage,
+    guides: "18,78,94",
+    useGuides: true,
+  };
+  assert.deepEqual(parseLayoutPreset(JSON.stringify(preset)), preset);
+  assert.throws(
+    () =>
+      parseLayoutPreset(JSON.stringify({ ...preset, password: "not-allowed" })),
+    /Not valid/,
+  );
+  assert.throws(
+    () => parseLayoutPreset(JSON.stringify({ ...preset, guides: "80,20" })),
+    /boundaries/,
+  );
+  assert.throws(
+    () =>
+      parseLayoutPreset(
+        JSON.stringify({
+          ...preset,
+          region: { left: 0, top: 0, right: 2, bottom: 1 },
+        }),
+      ),
+    /Not valid/,
+  );
+});

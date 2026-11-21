@@ -587,13 +587,11 @@ test("visual reader cancellation does not import delayed OCR results", async ({
   await open(page);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page
-    .getByLabel("Statement file", { exact: true })
-    .setInputFiles({
-      name: "cancel-scan.pdf",
-      mimeType: "application/pdf",
-      buffer: Buffer.from(scannedStatement, "base64"),
-    });
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "cancel-scan.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(scannedStatement, "base64"),
+  });
   await page
     .getByRole("button", { name: "Open visual reader / scans", exact: true })
     .click();
@@ -619,4 +617,110 @@ test("visual reader cancellation does not import delayed OCR results", async ({
     page.getByRole("button", { name: "Confirm import", exact: true }),
   ).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test("transactions can be corrected, filtered and reconciled before importing", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "review.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await page
+    .getByRole("button", { name: "Read statement", exact: true })
+    .click();
+  await expect(
+    page.getByText("7 transactions ready", { exact: true }),
+  ).toBeVisible();
+  const review = page.getByLabel("Review extracted transactions", {
+    exact: true,
+  });
+  const row = review.getByRole("row").filter({ hasText: "SYNTHETIC AMAZON" });
+  await row.getByRole("button", { name: "Correct row", exact: true }).click();
+  await page.getByLabel("Preview amount", { exact: true }).fill("1250");
+  await page
+    .getByRole("button", { name: "Save preview correction", exact: true })
+    .click();
+  await expect(row).toContainText("1250.00");
+  await expect(row).toContainText("Reviewed");
+  await page
+    .getByRole("combobox", { name: "Preview rows", exact: true })
+    .selectOption("unreviewed");
+  await expect(
+    review.getByRole("row").filter({ hasText: "SYNTHETIC AMAZON" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("combobox", { name: "Preview rows", exact: true })
+    .selectOption("all");
+  await page
+    .getByText("Compare transaction totals (optional)", { exact: true })
+    .click();
+  await page
+    .getByLabel("Expected transaction debit total", { exact: true })
+    .fill("3904");
+  await expect(
+    page.getByText("Debits: Matches the included transaction total.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 390);
+  await page
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(page.getByLabel("Statement totals")).toContainText("₹1,250.00");
+});
+test("visual crop settings can be downloaded and reused without statement data", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByLabel("Statement file", { exact: true }).setInputFiles({
+    name: "preset-source.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfFixture(),
+  });
+  await page
+    .getByRole("button", { name: "Open visual reader / scans", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Read selected table text", exact: true }),
+  ).toBeEnabled();
+  await page.getByText("Reuse this layout next time", { exact: true }).click();
+  const download = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Save layout settings", exact: true })
+    .click();
+  const file = await download;
+  const contents = await readFile((await file.path())!, "utf8");
+  expect(Object.keys(JSON.parse(contents)).sort()).toEqual([
+    "guides",
+    "region",
+    "useGuides",
+    "version",
+  ]);
+  expect(contents).not.toContain("SYNTHETIC");
+  expect(contents).not.toContain("password");
+  const preset = JSON.parse(contents);
+  preset.region.top = 0.1;
+  await page
+    .getByLabel("Load saved layout settings", { exact: true })
+    .setInputFiles({
+      name: "saved-layout.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(preset)),
+    });
+  await expect(
+    page.getByText(
+      "Layout loaded locally. Check the crop and guides on this statement before reading.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page
+    .getByText("Fine-tune selection and column guides", { exact: true })
+    .click();
+  await expect(page.getByLabel("Table top (%)", { exact: true })).toHaveValue(
+    "10",
+  );
 });
