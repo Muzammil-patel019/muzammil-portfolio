@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   fullPage,
+  parseLayoutPreset,
   tableFromWords,
   validRegion,
   wordsInRegion,
@@ -397,6 +398,68 @@ export default function VisualStatementReader({
           </div>
         )}
       </div>
+      <details>
+        <summary>Reuse this layout next time</summary>
+        <p className="cards-note">
+          Save only the table crop and column guides. The file contains no
+          statement text, account details or PDF password. Check the selection
+          against every new statement.
+        </p>
+        <div className="spend-actions">
+          <button
+            disabled={busy || !ready}
+            onClick={() => {
+              try {
+                const preset = parseLayoutPreset(
+                  JSON.stringify({ version: 1, region, guides, useGuides }),
+                );
+                const url = URL.createObjectURL(
+                  new Blob([JSON.stringify(preset, null, 2)], {
+                    type: "application/json",
+                  }),
+                );
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "statement-layout.json";
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Save layout settings
+          </button>
+        </div>
+        <label className="cards-field">
+          <span>Load saved layout settings</span>
+          <input
+            type="file"
+            accept=".json"
+            disabled={busy}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                if (file.size > 10000)
+                  throw Error("Layout settings must be smaller than 10 KB.");
+                const preset = parseLayoutPreset(await file.text());
+                setRegion(preset.region);
+                setGuides(preset.guides);
+                setUseGuides(preset.useGuides);
+                setError("");
+                setStatus(
+                  "Layout loaded locally. Check the crop and guides on this statement before reading.",
+                );
+              } catch (e) {
+                setError((e as Error).message);
+              } finally {
+                e.target.value = "";
+              }
+            }}
+          />
+        </label>
+      </details>
       <details>
         <summary>Fine-tune selection and column guides</summary>
         <div className="spend-fields">

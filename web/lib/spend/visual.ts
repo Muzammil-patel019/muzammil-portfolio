@@ -124,3 +124,36 @@ export function ocrGeometryWords(
     })),
   );
 }
+
+export type LayoutPreset = {
+  version: 1;
+  region: TableRegion;
+  guides: string;
+  useGuides: boolean;
+};
+export function parseLayoutPreset(text: string): LayoutPreset {
+  if (text.length > 10000)
+    throw Error("Layout settings must be smaller than 10 KB.");
+  const value = JSON.parse(text);
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(",") !== "guides,region,useGuides,version" ||
+    value.version !== 1 ||
+    typeof value.guides !== "string" ||
+    value.guides.length > 100 ||
+    typeof value.useGuides !== "boolean" ||
+    !value.region ||
+    Object.keys(value.region).sort().join(",") !== "bottom,left,right,top" ||
+    !validRegion(value.region)
+  )
+    throw Error("Not valid visual layout settings.");
+  pdfGridRows([[]], [100], value.guides.split(",").map(Number));
+  return {
+    version: 1,
+    region: { ...value.region },
+    guides: value.guides,
+    useGuides: value.useGuides,
+  };
+}

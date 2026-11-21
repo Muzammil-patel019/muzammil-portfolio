@@ -17,6 +17,7 @@ import { summarizeTransactions } from "@/lib/spend/analyzer";
 import { decryptSpend, encryptSpend } from "@/lib/spend/backup";
 import { pdfGridRows, pdfTable, type PDFLine } from "@/lib/spend/pdf";
 import { readStatementFile, type StatementSheet } from "@/lib/spend/files";
+import ImportReview from "./ImportReview";
 const VisualStatementReader = dynamic(() => import("./VisualStatementReader"), {
   ssr: false,
   loading: () => <p>Opening visual reader…</p>,
@@ -107,7 +108,13 @@ export default function SpendAnalyzer() {
 
   const [sheet, setSheet] = useState(0),
     [mapping, setMapping] = useState<Mapping | null>(null);
-  useEffect(() => setOCRReviewed(false), [mapping, pending?.id]);
+  const [overrides, setOverrides] = useState<{
+    key: string;
+    rows: Record<string, SpendTransaction>;
+  }>({ key: "", rows: {} });
+  const previewKey =
+    pending && mapping ? pending.id + JSON.stringify(mapping) + sheet : "";
+  useEffect(() => setOCRReviewed(false), [mapping, pending?.id, overrides]);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
@@ -159,14 +166,22 @@ export default function SpendAnalyzer() {
   const preview = useMemo(() => {
     if (!pending || !mapping) return null;
     try {
+      const result = normalizeRows(
+        pending.sheets[sheet].rows,
+        mapping,
+        pending.id,
+      );
       return {
-        ...normalizeRows(pending.sheets[sheet].rows, mapping, pending.id),
+        ...result,
+        transactions: result.transactions.map((t) =>
+          overrides.key === previewKey ? overrides.rows[t.id] || t : t,
+        ),
         error: "",
       };
     } catch (e) {
       return { transactions: [], issues: [], error: (e as Error).message };
     }
-  }, [pending, mapping, sheet]);
+  }, [pending, mapping, sheet, overrides, previewKey]);
   const filtered = useMemo(
     () =>
       doc.transactions.filter(
@@ -269,6 +284,7 @@ export default function SpendAnalyzer() {
     controller.current?.abort();
     setBusy(false);
     setDoc(empty());
+    setOverrides({ key: "", rows: {} });
     setVisualSource(null);
     setView("import");
     setPending(null);
@@ -324,6 +340,7 @@ export default function SpendAnalyzer() {
       const restored = await decryptSpend(await backup.text(), passphrase);
       if (epoch !== sequence.current) return;
       setDoc(restored);
+      setOverrides({ key: "", rows: {} });
       setVisualSource(null);
       setView("analysis");
       setCurrency(restored.transactions[0]?.currency || "INR");
@@ -354,6 +371,7 @@ export default function SpendAnalyzer() {
       const m = detectMapping(rows);
       setPending({
         ...pending,
+        id: crypto.randomUUID(),
         sheets: [{ name: "Custom PDF columns", rows }],
       });
       setSheet(0);
@@ -379,7 +397,11 @@ export default function SpendAnalyzer() {
       const rows = parseDelimited(tableText);
       if (rows.length < 2)
         throw Error("Add a header row and at least one transaction row.");
-      setPending({ ...pending, sheets: [{ name: "Corrected table", rows }] });
+      setPending({
+        ...pending,
+        id: crypto.randomUUID(),
+        sheets: [{ name: "Corrected table", rows }],
+      });
       setSheet(0);
       setMapping(detectMapping(rows));
       setError("");
@@ -459,6 +481,11 @@ export default function SpendAnalyzer() {
         </p>
       )}
       <div hidden={view !== "import"} className="spend-view-panel">
+        <ol className="spend-import-steps" aria-label="Import progress">
+          <li data-current={!pending}>1. Choose a statement</li>
+          <li data-current={!!pending}>2. Review & correct</li>
+          <li>3. Import securely</li>
+        </ol>
         <section className="cards-panel">
           <h3>Add a statement</h3>
           <p className="cards-note">
@@ -613,6 +640,7 @@ export default function SpendAnalyzer() {
                       const result = pdfTable(pending.pdfPages!);
                       setPending({
                         ...pending,
+                        id: crypto.randomUUID(),
                         sheets: [
                           { name: "PDF transactions", rows: result.rows },
                         ],
@@ -661,138 +689,151 @@ export default function SpendAnalyzer() {
                 Apply corrected table
               </button>
             </details>
-            <div className="spend-fields">
-              <Field label="Worksheet">
-                <select
-                  value={sheet}
-                  onChange={(e) => {
-                    const index = Number(e.target.value);
-                    setSheet(index);
-                    setMapping(detectMapping(pending.sheets[index].rows));
-                  }}
-                >
-                  {pending.sheets.map((s, i) => (
-                    <option key={i} value={i}>
-                      {s.name}
+            <details
+              className="spend-mapping-options"
+              open={!!preview.error || !preview.transactions.length}
+            >
+              <summary>
+                Column and date settings · {mapping.currency} ·{" "}
+                {mapping.dateOrder === "DMY"
+                  ? "Day/month/year"
+                  : "Month/day/year"}
+              </summary>
+              <div className="spend-fields">
+                <Field label="Worksheet">
+                  <select
+                    value={sheet}
+                    onChange={(e) => {
+                      const index = Number(e.target.value);
+                      setSheet(index);
+                      setMapping(detectMapping(pending.sheets[index].rows));
+                    }}
+                  >
+                    {pending.sheets.map((s, i) => (
+                      <option key={i} value={i}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Header row number">
+                  <input
+                    type="number"
+                    min={1}
+                    max={pending.sheets[sheet].rows.length}
+                    value={mapping.headerRow + 1}
+                    onChange={(e) => {
+                      const index = Math.max(
+                        0,
+                        Math.min(
+                          pending.sheets[sheet].rows.length - 1,
+                          Number(e.target.value) - 1,
+                        ),
+                      );
+                      setMapping({
+                        ...detectMapping(
+                          pending.sheets[sheet].rows.slice(index),
+                        ),
+                        headerRow: index,
+                      });
+                    }}
+                  />
+                </Field>
+                <Field label="Amount layout">
+                  <select
+                    value={mapping.mode}
+                    onChange={(e) =>
+                      setMapping({
+                        ...mapping,
+                        mode: e.target.value as Mapping["mode"],
+                      })
+                    }
+                  >
+                    <option value="separate">
+                      Separate debit / credit columns
                     </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Header row number">
-                <input
-                  type="number"
-                  min={1}
-                  max={pending.sheets[sheet].rows.length}
-                  value={mapping.headerRow + 1}
-                  onChange={(e) => {
-                    const index = Math.max(
-                      0,
-                      Math.min(
-                        pending.sheets[sheet].rows.length - 1,
-                        Number(e.target.value) - 1,
-                      ),
-                    );
-                    setMapping({
-                      ...detectMapping(pending.sheets[sheet].rows.slice(index)),
-                      headerRow: index,
-                    });
-                  }}
-                />
-              </Field>
-              <Field label="Amount layout">
-                <select
-                  value={mapping.mode}
-                  onChange={(e) =>
-                    setMapping({
-                      ...mapping,
-                      mode: e.target.value as Mapping["mode"],
-                    })
-                  }
-                >
-                  <option value="separate">
-                    Separate debit / credit columns
-                  </option>
-                  <option value="single">One amount column</option>
-                </select>
-              </Field>
-              {col("date", "Date column")}
-              {col("description", "Description column")}
-              {mapping.mode === "separate" ? (
-                <>
-                  {col("debit", "Debit column")}
-                  {col("credit", "Credit column")}
-                </>
-              ) : (
-                <>
-                  {col("amount", "Amount column")}
-                  {col("direction", "Debit / credit indicator column")}
-                  <Field label="Signed amount convention">
-                    <select
-                      value={mapping.sign}
-                      onChange={(e) =>
-                        setMapping({
-                          ...mapping,
-                          sign: e.target.value as Mapping["sign"],
-                        })
-                      }
-                    >
-                      <option value="positive-debit">
-                        Positive = debit, negative = credit
-                      </option>
-                      <option value="negative-debit">
-                        Negative = debit, positive = credit
-                      </option>
-                    </select>
-                  </Field>
-                </>
-              )}
-              <Field label="Date order">
-                <select
-                  value={mapping.dateOrder}
-                  onChange={(e) =>
-                    setMapping({
-                      ...mapping,
-                      dateOrder: e.target.value as Mapping["dateOrder"],
-                    })
-                  }
-                >
-                  <option value="DMY">Day / month / year</option>
-                  <option value="MDY">Month / day / year</option>
-                </select>
-              </Field>
-              <Field label="Year for dates without a year">
-                <input
-                  type="number"
-                  min={1970}
-                  max={2100}
-                  value={mapping.year}
-                  onChange={(e) =>
-                    setMapping({ ...mapping, year: Number(e.target.value) })
-                  }
-                />
-              </Field>
-              <Field label="Statement currency">
-                <select
-                  value={mapping.currency}
-                  onChange={(e) =>
-                    setMapping({
-                      ...mapping,
-                      currency: e.target.value as Mapping["currency"],
-                    })
-                  }
-                >
-                  {["INR", "USD", "EUR", "GBP", "AED", "SAR"].map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <p className="cards-note">
-              Currency is assigned to all rows in this import. For
-              foreign-currency cards, map the billed amount column. CR/DR
-              markers and the indicator column override the signed convention.
-              Balance columns are never added to spending.
-            </p>
+                    <option value="single">One amount column</option>
+                  </select>
+                </Field>
+                {col("date", "Date column")}
+                {col("description", "Description column")}
+                {mapping.mode === "separate" ? (
+                  <>
+                    {col("debit", "Debit column")}
+                    {col("credit", "Credit column")}
+                  </>
+                ) : (
+                  <>
+                    {col("amount", "Amount column")}
+                    {col("direction", "Debit / credit indicator column")}
+                    <Field label="Signed amount convention">
+                      <select
+                        value={mapping.sign}
+                        onChange={(e) =>
+                          setMapping({
+                            ...mapping,
+                            sign: e.target.value as Mapping["sign"],
+                          })
+                        }
+                      >
+                        <option value="positive-debit">
+                          Positive = debit, negative = credit
+                        </option>
+                        <option value="negative-debit">
+                          Negative = debit, positive = credit
+                        </option>
+                      </select>
+                    </Field>
+                  </>
+                )}
+                <Field label="Date order">
+                  <select
+                    value={mapping.dateOrder}
+                    onChange={(e) =>
+                      setMapping({
+                        ...mapping,
+                        dateOrder: e.target.value as Mapping["dateOrder"],
+                      })
+                    }
+                  >
+                    <option value="DMY">Day / month / year</option>
+                    <option value="MDY">Month / day / year</option>
+                  </select>
+                </Field>
+                <Field label="Year for dates without a year">
+                  <input
+                    type="number"
+                    min={1970}
+                    max={2100}
+                    value={mapping.year}
+                    onChange={(e) =>
+                      setMapping({ ...mapping, year: Number(e.target.value) })
+                    }
+                  />
+                </Field>
+                <Field label="Statement currency">
+                  <select
+                    value={mapping.currency}
+                    onChange={(e) =>
+                      setMapping({
+                        ...mapping,
+                        currency: e.target.value as Mapping["currency"],
+                      })
+                    }
+                  >
+                    {["INR", "USD", "EUR", "GBP", "AED", "SAR"].map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <p className="cards-note">
+                Currency is assigned to all rows in this import. For
+                foreign-currency cards, map the billed amount column. CR/DR
+                markers and the indicator column override the signed convention.
+                Balance columns are never added to spending.
+              </p>
+            </details>
             {preview.error && <p role="alert">{preview.error}</p>}
             <p>
               <strong>{preview.transactions.length} transactions ready</strong>{" "}
@@ -811,37 +852,20 @@ export default function SpendAnalyzer() {
                 <p>Showing the first 100 issues. Check the original file.</p>
               )}
             </details>
-            <div className="spend-table-wrap">
-              <table>
-                <caption>Preview · first 12 transactions</caption>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Direction</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.transactions.slice(0, 12).map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.date}</td>
-                      <td>
-                        {t.description}
-                        {t.importNote && <small>{t.importNote}</small>}
-                        {t.excluded && (
-                          <small>Excluded from totals until reviewed</small>
-                        )}
-                      </td>
-                      <td>{t.direction}</td>
-                      <td>
-                        {t.currency} {(t.amountMinor / 100).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ImportReview
+              key={previewKey}
+              transactions={preview.transactions}
+              currency={mapping.currency}
+              onUpdate={(t) =>
+                setOverrides((old) => ({
+                  key: previewKey,
+                  rows: {
+                    ...(old.key === previewKey ? old.rows : {}),
+                    [t.id]: t,
+                  },
+                }))
+              }
+            />
             {pending.ocrReview && (
               <label className="spend-check">
                 <input
@@ -881,6 +905,7 @@ export default function SpendAnalyzer() {
                 setCurrency(mapping.currency);
                 setView("analysis");
                 setPending(null);
+                setOverrides({ key: "", rows: {} });
                 setVisualSource(null);
                 setTableText("");
                 setFile(null);
