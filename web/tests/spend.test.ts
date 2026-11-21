@@ -383,3 +383,97 @@ test("generic PDF columns recover reordered layouts without a known bank header"
   assert.throws(() => pdfGridRows(pages, [800], [75, 30]), /boundaries/);
   assert.throws(() => pdfGridRows(pages, [800], [100]), /boundaries/);
 });
+
+test("visual table crops exclude out-of-region content and reject invalid selections", async () => {
+  const { wordsInRegion, tableFromWords } = await import("../lib/spend/visual");
+  const words = [
+    { text: "HEADER", x: 20, y: 760, width: 80 },
+    { text: "01/11/2026", x: 20, y: 600, width: 90 },
+    { text: "SYNTHETIC SHOP", x: 200, y: 600, width: 180 },
+    { text: "100.00 D", x: 600, y: 600, width: 80 },
+  ];
+  const region = { left: 0, top: 0.2, right: 1, bottom: 0.5 };
+  const selected = wordsInRegion(words, 800, 800, region);
+  assert.equal(selected.length, 3);
+  assert.ok(!selected.some((w) => w.text === "HEADER"));
+  const extracted = tableFromWords(
+    selected,
+    800,
+    240,
+    null,
+    "Selected region only",
+  );
+  const parsed = normalizeRows(
+    extracted.rows,
+    detectMapping(extracted.rows),
+    "visual",
+  );
+  assert.equal(parsed.transactions[0].amountMinor, 10000);
+  assert.match(parsed.transactions[0].importNote!, /Selected region/);
+  assert.throws(
+    () =>
+      wordsInRegion(words, 800, 800, {
+        left: 0.5,
+        right: 0.1,
+        top: 0,
+        bottom: 1,
+      }),
+    /larger table/,
+  );
+});
+
+test("OCR row grouping joins short credit markers to taller amount glyphs by vertical overlap", async () => {
+  const { ocrGeometryWords, tableFromWords } =
+    await import("../lib/spend/visual");
+  const words = [
+    { text: "01/11/2026", bbox: { x0: 10, x1: 180, y0: 100, y1: 132 } },
+    { text: "REFUND", bbox: { x0: 300, x1: 450, y0: 102, y1: 130 } },
+    { text: "25.00", bbox: { x0: 600, x1: 700, y0: 100, y1: 132 } },
+    { text: "C", bbox: { x0: 750, x1: 770, y0: 102, y1: 125 } },
+  ];
+  const result = tableFromWords(
+    ocrGeometryWords(words, 900, 1),
+    800,
+    900,
+    null,
+    "OCR test",
+  );
+  const tx = normalizeRows(
+    result.rows,
+    detectMapping(result.rows),
+    "ocr-row",
+  ).transactions;
+  assert.equal(tx[0].direction, "credit");
+  assert.equal(tx[0].amountMinor, 2500);
+});
+
+test("OCR rows without an explicit direction are excluded rather than silently counted as debits", async () => {
+  const { tableFromWords } = await import("../lib/spend/visual");
+  const result = tableFromWords(
+    [
+      { text: "01/11/2026", x: 10, y: 500, width: 90 },
+      { text: "REFUND", x: 200, y: 500, width: 100 },
+      { text: "25.00", x: 600, y: 500, width: 80 },
+    ],
+    800,
+    600,
+    null,
+    "OCR from page 1",
+  );
+  const parsed = normalizeRows(
+    result.rows,
+    detectMapping(result.rows),
+    "ocr-uncertain",
+  ).transactions;
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].excluded, true);
+  assert.equal(summarizeTransactions(parsed).outflows, 0);
+  assert.match(parsed[0].importNote!, /explicit debit\/credit direction/);
+  const rows = parseDelimited(
+    "Date,Description,Amount,Type\n01/11/2026,Refund,25.00,Cc",
+  );
+  assert.match(
+    normalizeRows(rows, detectMapping(rows), "bad-marker").issues[0].reason,
+    /Unrecognised/,
+  );
+});

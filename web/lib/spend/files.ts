@@ -98,7 +98,7 @@ export async function readStatementFile(
     if (result.rows.length < 2) {
       if (!result.textLines)
         throw Error(
-          "No readable text was found in this PDF. It may be a scanned statement. Local OCR is not available yet; use the bank CSV/XLSX export.",
+          "No readable text was found in this PDF. It may be a scanned statement. Open the visual reader and use local OCR, or use the bank CSV/XLSX export.",
         );
       result.warnings.push(
         `Readable text was found on ${document.numPages} page(s), but the transaction layout could not be recognised (${result.datedRows} date-like rows). This does not mean the PDF is scanned. No transactions were imported automatically. Use the layout editor below to arrange the columns, or import a bank CSV/XLSX export. Your file and password stayed on this device.`,

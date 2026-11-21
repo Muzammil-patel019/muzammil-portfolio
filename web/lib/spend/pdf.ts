@@ -104,6 +104,7 @@ function readBlock(
   lines: PDFLine[],
   layout: Layout | null,
   pointHint: boolean,
+  requireDirection = false,
 ) {
   const first = pdfDatePrefix(lineText(lines[0]));
   if (!first) return null;
@@ -116,6 +117,7 @@ function readBlock(
   )
     return null;
   let marker: string | undefined;
+  let explicitDirection = false;
   let amount = "",
     direction: "debit" | "credit" = "debit",
     description = "";
@@ -185,6 +187,11 @@ function readBlock(
                 : parsed.negative
                   ? "credit"
                   : "debit");
+    explicitDirection =
+      picked.nearest.kind !== "amount" ||
+      !!marker ||
+      !!parsed.marker ||
+      parsed.negative;
     amount = (parsed.minor / 100).toFixed(2);
     // Description stops before the amount/reward/balance columns, excluding both date columns.
     const descriptionEnd = Math.min(...anchors.map((a) => a.cell.x)) - 10;
@@ -217,6 +224,7 @@ function readBlock(
       const parsed = parseAmount(marked[2]);
       if (!parsed?.minor) return null;
       marker = marked[3].toUpperCase();
+      explicitDirection = true;
       amount = (parsed.minor / 100).toFixed(2);
       direction = marker === "C" || marker === "CR" ? "credit" : "debit";
       description = marked[1];
@@ -234,6 +242,7 @@ function readBlock(
       if (!parsed?.minor) return null;
       amount = (parsed.minor / 100).toFixed(2);
       direction = parsed.marker || (parsed.negative ? "credit" : "debit");
+      explicitDirection = !!parsed.marker || parsed.negative;
       description = text.slice(0, token.index).trim();
     }
   }
@@ -262,9 +271,21 @@ function readBlock(
       "EMI conversion/transfer: excluded to avoid counting converted principal as a new purchase. Review before including.",
       "true",
     );
+  if (requireDirection && !explicitDirection) {
+    row[4] = [
+      row[4],
+      "OCR did not read an explicit debit/credit direction. Excluded until the direction is corrected and reviewed.",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    row[5] = "true";
+  }
   return row;
 }
-export function pdfTable(pages: PDFLine[][]) {
+export function pdfTable(
+  pages: PDFLine[][],
+  options: { requireDirection?: boolean } = {},
+) {
   const rows: string[][] = [
       [
         "Date",
@@ -292,7 +313,7 @@ export function pdfTable(pages: PDFLine[][]) {
       if (!block.length) return;
       let parsed: string[] | null = null;
       try {
-        parsed = readBlock(block, layout, pointHint);
+        parsed = readBlock(block, layout, pointHint, options.requireDirection);
       } catch {
         /* Kept out of totals when a row is ambiguous. */
       }
@@ -328,7 +349,12 @@ export function pdfTable(pages: PDFLine[][]) {
         };
         let parsed: string[] | null = null;
         try {
-          parsed = readBlock([synthetic], layout, pointHint);
+          parsed = readBlock(
+            [synthetic],
+            layout,
+            pointHint,
+            options.requireDirection,
+          );
         } catch {
           /* skip ambiguous tax rows */
         }
@@ -349,7 +375,12 @@ export function pdfTable(pages: PDFLine[][]) {
         // Join a wrapped transaction only while its amount hasn't been found.
         let complete: string[] | null = null;
         try {
-          complete = readBlock(block, layout, pointHint);
+          complete = readBlock(
+            block,
+            layout,
+            pointHint,
+            options.requireDirection,
+          );
         } catch {
           /* continue to next line */
         }
@@ -379,7 +410,7 @@ export function pdfTable(pages: PDFLine[][]) {
     );
   if (reviewOnly)
     warnings.push(
-      `${reviewOnly} M-marked EMI or conversion row(s) are retained but excluded from spending by default. Review them in Transactions; use Include only when appropriate.`,
+      `${reviewOnly} flagged row(s) are retained but excluded from spending by default. Review them in Transactions; use Include only when appropriate.`,
     );
   return {
     rows,
