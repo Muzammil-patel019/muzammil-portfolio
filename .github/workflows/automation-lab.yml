@@ -37,6 +37,8 @@ jobs:
           python3 -m venv /tmp/lab-tests
           /tmp/lab-tests/bin/python -m pip install -r automation-lab-framework/requirements.txt
           /tmp/lab-tests/bin/python -m playwright install --with-deps chromium
+      - name: Component interview practice tests
+        run: /tmp/lab-tests/bin/python -m pytest web/public/learning/component-practice -q
       - name: Start app
         run: |
           npm --prefix web start > /tmp/lab-server.log 2>&1 &
@@ -49,7 +51,7 @@ jobs:
         env:
           TEST_BASE_URL: http://127.0.0.1:3000
           PLAYWRIGHT_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
-        run: npm --prefix web run test:browser -- spend.spec.ts dashboard.spec.ts
+        run: npm --prefix web run test:browser -- spend.spec.ts dashboard.spec.ts learning.spec.ts role-learning.spec.ts
       - name: API, UI and disposable commerce tests
         working-directory: automation-lab-framework
         run: /tmp/lab-tests/bin/python -m pytest --commerce -v --junitxml=artifacts/results.xml

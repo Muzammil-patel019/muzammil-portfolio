@@ -65,8 +65,8 @@ export async function publicResume() {
   const parsed = resumeSchema.safeParse(data?.document);
   return parsed.success ? parsed.data : resumeSchema.parse(seed);
 }
-export async function readJSON(request: NextRequest) {
+export async function readJSON(request: NextRequest, maxLength = 200000) {
   const raw = await request.text();
-  if (raw.length > 200000) throw new Error("SIZE");
+  if (raw.length > maxLength) throw new Error("SIZE");
   return JSON.parse(raw);
 }

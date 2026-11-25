@@ -146,6 +146,12 @@ export function dashboardSummary(input: DashboardInput): DashboardSummary {
         for (const key of ["read", "quiz", "practice"])
           if ((unit as Record<string, unknown>)[key] === true) completed++;
     }
+  let learningTotal = 27;
+  const role = progress.role as {units?: Record<string, Record<string, unknown>>} | undefined;
+  if (role?.units) {
+    completed = ["python","design","pytest","fixtures","cpp","component","mqtt","async","git","docker","ado","trace"].reduce((n,id) => n + ["read","quiz","practice"].filter(k => role.units?.[id]?.[k] === true).length, 0);
+    learningTotal = 36;
+  }
   const days = Array.isArray(progress.days)
     ? [
         ...new Set(
@@ -180,7 +186,7 @@ export function dashboardSummary(input: DashboardInput): DashboardSummary {
     subscriptions: { count: input.plans.length, collect },
     learning: {
       completed,
-      total: 27,
+      total: learningTotal,
       activeDays: validDays.length,
       lastActivity: last
         ? new Date(last * 86400000).toISOString().slice(0, 10)

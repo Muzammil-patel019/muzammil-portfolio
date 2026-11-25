@@ -59,7 +59,7 @@ export default function Learning() {
     window.addEventListener('message',receive);
     return () => {data?.subscription.unsubscribe();window.removeEventListener('message',receive);};
   }, [db]);
-  if (!signed) return <main className="studio" style={{padding:'32px 20px'}}><div className="panel" style={{maxWidth:560,margin:'40px auto'}}><a href="/">← Portfolio</a><p>YOUR PERSONAL LEARNING SPACE</p><h1>Learn by doing.</h1><p>Explore Python, pytest and Java through visual walkthroughs, prediction games and coding challenges. Keep your streak and progress together.</p><a className="button" href="/login?next=learning">Sign in to start learning →</a>{!db && <p>Learning sign-in needs account configuration. Please check back shortly.</p>}<p>Use your existing owner account. Your progress stays private.</p></div></main>;
+  if (!signed) return <main className="studio" style={{padding:'32px 20px'}}><div className="panel" style={{maxWidth:560,margin:'40px auto'}}><a href="/">← Portfolio</a><p>YOUR PERSONAL LEARNING SPACE</p><h1>Learn by doing.</h1><p>Prepare for service-component testing with Python, Pytest, C++, MQTT and Docker. Build a real practice project, review your experience and rehearse interview answers.</p><a className="button" href="/login?next=learning">Sign in to start learning →</a>{!db && <p>Learning sign-in needs account configuration. Please check back shortly.</p>}<p>Use your existing owner account. Your progress stays private.</p></div></main>;
   return <main className="learning-shell">
     <div className="learning-topbar">
       <a className="learning-home" href="/">← Portfolio</a>
@@ -71,6 +71,6 @@ export default function Learning() {
       </>}
       <p role="status" style={{fontSize:13,margin:0}}>{message}</p>
     </div>
-    <iframe ref={frame} title="Interactive learning lab" src="/learning/lab.html" className="learning-frame" />
+    <iframe ref={frame} title="Interactive learning lab" src="/learning/role.html" className="learning-frame" />
   </main>;
 }
