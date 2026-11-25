@@ -26,7 +26,7 @@ const config: NextConfig = {
         ],
       },
       {
-        source: "/learning/:document(lab|lab.html|index.html)",
+        source: "/learning/:document(lab|lab.html|index.html|role.html)",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },

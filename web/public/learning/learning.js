@@ -7,6 +7,7 @@
   try {
     const stored = JSON.parse(localStorage.getItem(key) || '{}');
     if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      if (stored.role && typeof stored.role === 'object') state.role = stored.role;
       state.days = Array.isArray(stored.days) ? [...new Set(stored.days.filter(d => Number.isInteger(d) && d > 0))] : [];
       for (const lesson of lessons) {
         const value = stored[lesson.id];
