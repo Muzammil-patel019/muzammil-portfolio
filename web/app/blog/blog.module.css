@@ -1,128 +1,132 @@
 .blog {
-  padding-block: clamp(32px, 6vw, 72px) 90px;
+  max-width: 1040px;
+  padding-block: clamp(28px, 5vw, 64px) 85px;
   overflow-wrap: anywhere;
 }
 
 .intro {
-  margin-bottom: 30px;
+  margin-bottom: clamp(22px, 4vw, 38px);
 }
 
 .intro h1 {
   margin-bottom: 12px;
-  font-size: clamp(2.35rem, 6.2vw, 5.8rem);
+  font-size: clamp(2.35rem, 6vw, 5rem);
 }
 
 .intro p {
   color: var(--muted);
-  margin-bottom: 0;
+  margin: 0;
 }
 
-.categories {
-  margin-bottom: 24px;
+.directory + .directory {
+  margin-top: 34px;
 }
 
-.categories h2,
-.category h2 {
-  font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+.directory h2,
+.article h2 {
+  font-size: clamp(1.2rem, 2.6vw, 1.52rem);
   line-height: 1.25;
   margin-bottom: 12px;
 }
 
-.categories ul,
-.category ul {
+.topicGrid,
+.lessonList {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.categories ul {
+.topicGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.categories a,
-.category a {
+.topicGrid a,
+.lessonList a,
+.lessonNav a {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  min-height: 48px;
-  line-height: 1.35;
+  gap: 5px 12px;
+  padding: 12px;
+  line-height: 1.4;
 }
 
-.categories a {
+.topicGrid a,
+.lessonNav a {
+  border: 1px solid var(--line);
+  border-radius: 10px;
   height: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 0.9rem;
 }
 
-.categories a span,
-.category a span,
-.back,
-.lessonNav a span {
-  color: var(--accent);
-}
-
-.index {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 56px;
-}
-
-.category {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.category li {
-  border-top: 1px solid var(--line);
-}
-
-.category a {
-  padding: 10px 4px;
-}
-
-.categories a:hover,
-.category a:hover,
+.topicGrid a:hover,
+.lessonList a:hover,
 .lessonNav a:hover {
   background: color-mix(in srgb, var(--accent) 8%, var(--paper));
 }
 
-.category:target {
-  border-color: var(--accent);
+.description {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
-.reading {
+.topicGrid small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.arrow,
+.lessonNav a span {
+  color: var(--accent);
+}
+
+.lessonList {
   max-width: 76ch;
-  margin-inline: auto;
+  border-bottom: 1px solid var(--line);
 }
 
-.lesson {
-  padding-block: 26px 36px;
+.lessonList li {
   border-top: 1px solid var(--line);
 }
 
-.lesson:target {
-  border-top-color: var(--accent);
+.lessonList a {
+  align-items: center;
+  min-height: 50px;
+  padding-inline: 4px;
 }
 
-.lesson h2 {
-  font-size: clamp(1.45rem, 4vw, 2.25rem);
-  line-height: 1.2;
-  margin: 12px 0 16px;
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 12px;
 }
 
+.breadcrumb a,
 .back,
 .reference a {
   display: inline-block;
   padding-block: 10px;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.reading {
+  max-width: 74ch;
+}
+
+.reading h1 {
+  font-size: clamp(2rem, 5vw, 3.7rem);
+}
+
+.intro .answer {
+  color: var(--ink);
+  font-size: 1.1rem;
 }
 
 .takeaway,
@@ -155,24 +159,28 @@
 
 .lessonNav a {
   display: block;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
 }
 
 .lessonNav a span {
   display: block;
   font-size: 0.85rem;
+  margin-bottom: 4px;
 }
 
-@media (max-width: 720px) {
-  .index {
-    grid-template-columns: 1fr;
+@media (max-width: 800px) {
+  .topicGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :global(html):has(.blog) {
-    scroll-behavior: auto;
+@media (max-width: 560px) {
+  .description {
+    display: none;
+  }
+}
+
+@media (max-width: 359px) {
+  .topicGrid {
+    grid-template-columns: 1fr;
   }
 }
