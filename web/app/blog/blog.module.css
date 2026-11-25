@@ -1,0 +1,178 @@
+.blog {
+  padding-block: clamp(32px, 6vw, 72px) 90px;
+  overflow-wrap: anywhere;
+}
+
+.intro {
+  margin-bottom: 30px;
+}
+
+.intro h1 {
+  margin-bottom: 12px;
+  font-size: clamp(2.35rem, 6.2vw, 5.8rem);
+}
+
+.intro p {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.categories {
+  margin-bottom: 24px;
+}
+
+.categories h2,
+.category h2 {
+  font-size: clamp(1.15rem, 2.4vw, 1.5rem);
+  line-height: 1.25;
+  margin-bottom: 12px;
+}
+
+.categories ul,
+.category ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.categories ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.categories a,
+.category a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  line-height: 1.35;
+}
+
+.categories a {
+  height: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.categories a span,
+.category a span,
+.back,
+.lessonNav a span {
+  color: var(--accent);
+}
+
+.index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 56px;
+}
+
+.category {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.category li {
+  border-top: 1px solid var(--line);
+}
+
+.category a {
+  padding: 10px 4px;
+}
+
+.categories a:hover,
+.category a:hover,
+.lessonNav a:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+
+.category:target {
+  border-color: var(--accent);
+}
+
+.reading {
+  max-width: 76ch;
+  margin-inline: auto;
+}
+
+.lesson {
+  padding-block: 26px 36px;
+  border-top: 1px solid var(--line);
+}
+
+.lesson:target {
+  border-top-color: var(--accent);
+}
+
+.lesson h2 {
+  font-size: clamp(1.45rem, 4vw, 2.25rem);
+  line-height: 1.2;
+  margin: 12px 0 16px;
+}
+
+.back,
+.reference a {
+  display: inline-block;
+  padding-block: 10px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.takeaway,
+.quiz {
+  border-left: 3px solid var(--accent);
+  padding: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+
+.quiz summary {
+  min-height: 28px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.quiz p {
+  margin: 10px 0 0;
+}
+
+.reference {
+  margin: 8px 0;
+}
+
+.lessonNav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.lessonNav a {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.lessonNav a span {
+  display: block;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .index {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html):has(.blog) {
+    scroll-behavior: auto;
+  }
+}

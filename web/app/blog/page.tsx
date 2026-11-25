@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/Header";
+import styles from "./blog.module.css";
 
 export const metadata: Metadata = {
   title: "Everyday Basics | Muzammil Patel",
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 const topics = [
   {
     heading: "Vehicles",
+    id: "vehicles",
     lessons: [
       {
         slug: "motorcycle",
@@ -118,6 +120,7 @@ const topics = [
   },
   {
     heading: "Phones and internet",
+    id: "phones-and-internet",
     lessons: [
       {
         slug: "phone-call",
@@ -227,6 +230,7 @@ const topics = [
   },
   {
     heading: "Home and appliances",
+    id: "home-and-appliances",
     lessons: [
       {
         slug: "refrigerator",
@@ -336,6 +340,7 @@ const topics = [
   },
   {
     heading: "Money, health and public services",
+    id: "everyday-services",
     lessons: [
       {
         slug: "qr-payment",
@@ -445,64 +450,106 @@ const topics = [
   },
 ];
 
+const allLessons = topics.flatMap(({ heading, id, lessons }) =>
+  lessons.map((lesson) => ({ ...lesson, heading, categoryId: id })),
+);
+
 export default function Page() {
   return (
     <>
       <Header />
-      <main id="main" className="subpage-main">
-        <div className="subpage-hero">
+      <main id="main" className={styles.blog}>
+        <header className={styles.intro}>
           <h1>Everyday Basics</h1>
           <p>28 short lessons on how the things you use every day work.</p>
-        </div>
+        </header>
 
-        <nav className="page-grid" id="lesson-index" aria-label="Lesson index">
-          {topics.map(({ heading, lessons }) => (
-            <section className="page-card" key={heading}>
+        <nav
+          id="lesson-index"
+          aria-label="Lesson categories"
+          className={styles.categories}
+        >
+          <h2>Browse by topic</h2>
+          <ul>
+            {topics.map(({ heading, id }) => (
+              <li key={id}>
+                <a href={`#${id}`}>
+                  {heading} <span aria-hidden="true">↓</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className={styles.index}>
+          {topics.map(({ heading, id, lessons }) => (
+            <section id={id} className={styles.category} key={id}>
               <h2>{heading}</h2>
               <ul>
                 {lessons.map(({ slug, title }) => (
                   <li key={slug}>
-                    <a className="text-link" href={`#${slug}`}>
-                      {title}
+                    <a href={`#${slug}`}>
+                      {title} <span aria-hidden="true">→</span>
                     </a>
                   </li>
                 ))}
               </ul>
             </section>
           ))}
-        </nav>
+        </div>
 
-        {topics.map(({ heading, lessons }) => (
-          <section className="empty-note" key={heading}>
-            <h2>{heading}</h2>
-            {lessons.map((lesson) => (
+        <div className={styles.reading}>
+          {allLessons.map((lesson, index) => {
+            const previous = allLessons[index - 1];
+            const next = allLessons[index + 1];
+            return (
               <article
-                className="empty-note"
+                className={styles.lesson}
                 key={lesson.slug}
                 id={lesson.slug}
               >
-                <h3>{lesson.title}</h3>
+                <a className={styles.back} href={`#${lesson.categoryId}`}>
+                  ↑ Back to {lesson.heading.toLowerCase()}
+                </a>
+                <h2>{lesson.title}</h2>
                 <p>
                   <strong>{lesson.answer}</strong>
                 </p>
                 <p>{lesson.explanation}</p>
-                <p>
+                <p className={styles.takeaway}>
                   <strong>Try this.</strong> {lesson.takeaway}
                 </p>
-                <details>
+                <details className={styles.quiz}>
                   <summary>{lesson.question}</summary>
                   <p>{lesson.quizAnswer}</p>
                 </details>
-                <p>
-                  <a className="text-link" href={lesson.url}>
-                    {lesson.reference}
-                  </a>
+                <p className={styles.reference}>
+                  <a href={lesson.url}>{lesson.reference}</a>
                 </p>
-                <a href="#lesson-index">Back to lesson index ↑</a>
+                <nav
+                  className={styles.lessonNav}
+                  aria-label={`Navigation for ${lesson.title}`}
+                >
+                  {previous && (
+                    <a href={`#${previous.slug}`}>
+                      <span>← Previous lesson</span>
+                      {previous.title}
+                    </a>
+                  )}
+                  {next && (
+                    <a href={`#${next.slug}`}>
+                      <span>Next lesson →</span>
+                      {next.title}
+                    </a>
+                  )}
+                </nav>
+                <a className={styles.back} href="#lesson-index">
+                  ↑ All topics
+                </a>
               </article>
-            ))}
-          </section>
-        ))}
+            );
+          })}
+        </div>
       </main>
     </>
   );
