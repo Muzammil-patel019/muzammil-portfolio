@@ -49,6 +49,7 @@ export function Header() {
             ["/", "Home"],
             ["/projects", "Projects"],
             ["/learning", "Learning"],
+            ["/blog", "Blog"],
             ["/resume", "Resume"],
             ["/#contact", "Contact"],
           ].map(([href, label]) => (
