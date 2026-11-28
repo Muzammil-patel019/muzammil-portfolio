@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
@@ -88,6 +89,37 @@ export default async function Page({ params }: Props) {
             <h2>How it works</h2>
             <p>{lesson.explanation}</p>
           </section>
+          {lesson.figure && (
+            <figure className={styles.figure}>
+              <Image
+                src={`/blog/testing/${lesson.figure.src}`}
+                alt={lesson.figure.alt}
+                width={960}
+                height={520}
+                unoptimized
+              />
+              <figcaption>{lesson.figure.caption}</figcaption>
+            </figure>
+          )}
+          {lesson.walkthrough && (
+            <section>
+              <h2>Walk through the example</h2>
+              <ol className={styles.walkthrough}>
+                {lesson.walkthrough.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </section>
+          )}
+          {lesson.code && (
+            <section>
+              <h2>What the test looks like</h2>
+              <p>{lesson.code.label}</p>
+              <pre className={styles.code}>
+                <code>{lesson.code.snippet}</code>
+              </pre>
+            </section>
+          )}
           <section>
             <h2>{lesson.followUp.question}</h2>
             <p>{lesson.followUp.answer}</p>

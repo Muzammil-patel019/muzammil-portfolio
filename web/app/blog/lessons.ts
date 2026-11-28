@@ -1,3 +1,5 @@
+import { testingTopic } from "./testing";
+
 type Lesson = {
   slug: string;
   title: string;
@@ -9,9 +11,12 @@ type Lesson = {
   followUp: { question: string; answer: string };
   reference: string;
   url: string;
+  figure?: { src: string; alt: string; caption: string };
+  walkthrough?: string[];
+  code?: { label: string; snippet: string };
 };
 
-type Topic = {
+export type Topic = {
   id: string;
   heading: string;
   description: string;
@@ -878,7 +883,7 @@ const newTopics: Topic[] = [
   },
 ];
 
-export const topics = [...newTopics, ...originalTopics];
+export const topics = [testingTopic, ...newTopics, ...originalTopics];
 export const blogPath = (slug: string) => `/blog/${slug}`;
 
 export const blogSlugs = topics.flatMap((topic) => [
